@@ -98,5 +98,36 @@ class AI(commands.Cog):
             except Exception as e:
                 await ctx.send(f"🤐 Me quedé muda: {e}")
 
+    @commands.command()
+    async def tts(self, ctx, *, text):
+        if not ctx.message.author.voice:
+            return await ctx.send("❌ ¡Entra a un canal de voz!")
+            
+        channel = ctx.message.author.voice.channel
+        if ctx.voice_client is None:
+            await channel.connect()
+
+        async with ctx.typing():
+            try:
+                communicate = edge_tts.Communicate(
+                    text, 
+                    config.TTS_VOICE, 
+                    rate=config.TTS_RATE, 
+                    pitch=config.TTS_PITCH
+                )
+                
+                archivo_audio = "tts_output.mp3"
+                await communicate.save(archivo_audio)
+
+                if ctx.voice_client.is_playing():
+                    ctx.voice_client.stop()
+                    
+                source = discord.FFmpegPCMAudio(archivo_audio)
+                ctx.voice_client.play(source)
+                await ctx.send(f"🗣️ **Diciendo:** {text}")
+
+            except Exception as e:
+                await ctx.send(f"🤐 Error TTS: {e}")
+
 async def setup(bot):
     await bot.add_cog(AI(bot))

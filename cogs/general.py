@@ -22,6 +22,7 @@ class General(commands.Cog):
         embed.add_field(name="!chat [texto]", value="Chatea con Asuka (IA).", inline=False)
         embed.add_field(name="!dj [mood]", value="Pide una recomendación musical.", inline=False)
         embed.add_field(name="!asuka [texto]", value="Asuka te responde con voz.", inline=False)
+        embed.add_field(name="!tts [texto]", value="El bot lee lo que escribas.", inline=False)
         embed.set_footer(text="Creado por Noel ❤️")
         await ctx.send(embed=embed)
 

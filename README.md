@@ -75,6 +75,7 @@
 | `!chat [text]` | Chat with Asuka (AI). |
 | `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |
 | `!asuka [text]` | Asuka speaks the text in a voice channel. |
+| `!tts [text]` | Speaks the provided text directly. |
 | `!status` | Shows server health stats. |
 
 ## 📂 Project Structure
