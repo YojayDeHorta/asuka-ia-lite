@@ -25,6 +25,7 @@ class General(commands.Cog):
         embed = discord.Embed(title="Ayuda de Asuka 🤖", color=discord.Color.pink())
         embed.add_field(name="!play [nombre]", value="Pone música o la añade a la cola.", inline=False)
         embed.add_field(name="!skip", value="Salta a la siguiente canción.", inline=False)
+        embed.add_field(name="!volume [0-100]", value="Ajusta el volumen.", inline=False)
         embed.add_field(name="!pause / !resume", value="Pausa o continua la música.", inline=False)
         embed.add_field(name="!queue", value="Muestra la lista de espera.", inline=False)
         embed.add_field(name="!stop / !bye", value="Desconecta al bot.", inline=False)

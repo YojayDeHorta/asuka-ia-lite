@@ -8,5 +8,8 @@
         "voice": "es-MX-DaliaNeural",
         "rate": "+8%",
         "pitch": "+25Hz"
+    },
+    "music": {
+        "default_volume": 50
     }
 }

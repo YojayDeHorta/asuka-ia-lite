@@ -32,3 +32,6 @@ AI_SYSTEM_PROMPT = SETTINGS['ai'].get('system_prompt', "Eres Asuka, un bot de m√
 TTS_VOICE = SETTINGS['tts'].get('voice', 'es-MX-DaliaNeural')
 TTS_RATE = SETTINGS['tts'].get('rate', '+0%')
 TTS_PITCH = SETTINGS['tts'].get('pitch', '+0Hz')
+
+# Music Settings
+DEFAULT_VOLUME = SETTINGS.get('music', {}).get('default_volume', 50) / 100

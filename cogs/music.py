@@ -3,6 +3,7 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 import database
+import config
 
 # Opciones FFMPEG (Estabilidad para el Xiaomi)
 ffmpeg_options = {
@@ -54,7 +55,7 @@ class Music(commands.Cog):
         
         url = data['url']
         title = data['title']
-        source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
+        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
 
         guild_id = ctx.guild.id
         if guild_id not in self.queues:
@@ -113,6 +114,18 @@ class Music(commands.Cog):
         embed = discord.Embed(title="📜 Cola de Reproducción", description=lista, color=discord.Color.gold())
         embed.set_footer(text="Creado por Noel")
         await ctx.send(embed=embed)
+
+    @commands.command(aliases=['vol'])
+    async def volume(self, ctx, vol: int):
+        """Ajusta el volumen (0-100)"""
+        if not ctx.voice_client:
+            return await ctx.send("❌ No estoy conectada.")
+            
+        if 0 <= vol <= 100:
+            ctx.voice_client.source.volume = vol / 100
+            await ctx.send(f"🔊 **Volumen:** {vol}%")
+        else:
+            await ctx.send("❌ Elige un número entre 0 y 100.")
 
     @commands.command(aliases=['leave', 'salir', 'disconnect', 'bye'])
     async def stop(self, ctx):

@@ -54,7 +54,8 @@
     ```json
     {
         "ai": { "model": "gemini-1.5-flash", ... },
-        "tts": { "voice": "es-MX-DaliaNeural", ... }
+        "tts": { "voice": "es-MX-DaliaNeural", ... },
+        "music": { "default_volume": 50 }
     }
     ```
 
@@ -70,6 +71,7 @@
 | `!play [song]` | Plays a song or adds it to the queue. |
 | `!skip` | Skips the current song. |
 | `!pause` / `!resume` | Controls playback. |
+| `!volume [0-100]` | Adjusts music volume. |
 | `!queue` | Shows the current music queue. |
 | `!stop` (or `!bye`, `!leave`) | Disconnects the bot and clears the queue. |
 | `!chat [text]` | Chat with Asuka (AI). |
