@@ -21,6 +21,53 @@ class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        # Ignorar si es el propio bot o si no es una conexión a un canal nuevo
+        if member.bot or before.channel == after.channel or after.channel is None:
+            return
+
+        # Verificar si el bot está en ese canal
+        vc = member.guild.voice_client
+        if vc and vc.channel == after.channel:
+            # El usuario acaba de entrar al canal donde está el bot
+            
+            # Si ya está reproduciendo música, mejor no interrumpir (o podrías hacerlo si prefieres)
+            if vc.is_playing():
+                # Opcional: Mandar saludo por texto si está ocupada cantando
+                return
+
+            try:
+                memories = database.get_memory(member.id)
+                contexto = ""
+                if memories:
+                    contexto = f"Sabes esto de él: {', '.join(memories)}."
+                
+                prompt = (
+                    f"Eres Asuka. El usuario {member.name} acaba de entrar al canal de voz donde estás. "
+                    f"{contexto} "
+                    "Salúdalo con una frase corta (máx 10 palabras), tóxica o sarcástica, reconociendo quién es."
+                )
+                
+                response = await model.generate_content_async(prompt)
+                saludo = response.text.strip().replace("*", "")
+                
+                communicate = edge_tts.Communicate(
+                    saludo, 
+                    config.TTS_VOICE, 
+                    rate=config.TTS_RATE, 
+                    pitch=config.TTS_PITCH
+                )
+                
+                archivo = "saludo_temp.mp3"
+                await communicate.save(archivo)
+                
+                source = discord.FFmpegPCMAudio(archivo)
+                vc.play(source)
+                
+            except Exception as e:
+                print(f"Error en saludo tóxico: {e}")
+
     @commands.command()
     async def chat(self, ctx, *, pregunta):
         async with ctx.typing():
@@ -83,9 +130,16 @@ class AI(commands.Cog):
             await ctx.send(f"🤔 **Analizando vibe:** `{mood}`...")
             
             try:
+                # Recuperar memoria musical
+                memories = database.get_memory(ctx.author.id)
+                contexto_memoria = ""
+                if memories:
+                    contexto_memoria = "Toma en cuenta esto que sabes del usuario:\n" + "\n".join(f"- {m}" for m in memories)
+
                 prompt_dj = (
                     f"Actúa como DJ. El usuario pide música para: '{mood}'. "
-                    "Recomienda 1 canción 'Artista - Canción'. "
+                    f"{contexto_memoria} "
+                    "Recomienda 1 canción 'Artista - Canción' que encaje con el mood y sus gustos. "
                     "Responde SOLO el nombre, sin comillas."
                 )
                 

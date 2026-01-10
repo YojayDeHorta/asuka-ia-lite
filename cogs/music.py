@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import yt_dlp
 import asyncio
+import database
 
 # Opciones FFMPEG (Estabilidad para el Xiaomi)
 ffmpeg_options = {
@@ -73,6 +74,13 @@ class Music(commands.Cog):
             embed.set_footer(text="Creado por Noel ❤️")
             await msg.delete()
             await ctx.send(embed=embed)
+
+        # Guardar en memoria automáticamente
+        try:
+            database.add_memory(ctx.author.id, f"Le gusta: {title}")
+            print(f"🧠 Memoria guardada: {ctx.author.name} -> {title}")
+        except Exception as e:
+            print(f"Error guardando memoria musical: {e}")
 
     @commands.command()
     async def skip(self, ctx):
