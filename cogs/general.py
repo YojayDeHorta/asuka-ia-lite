@@ -23,6 +23,8 @@ class General(commands.Cog):
         embed.add_field(name="!dj [mood]", value="Pide una recomendación musical.", inline=False)
         embed.add_field(name="!asuka [texto]", value="Asuka te responde con voz.", inline=False)
         embed.add_field(name="!tts [texto]", value="El bot lee lo que escribas.", inline=False)
+        embed.add_field(name="!ver / !mira [img]", value="Asuka opina sobre tu imagen.", inline=False)
+        embed.add_field(name="!recuerda [dato]", value="Guarda algo en su memoria.", inline=False)
         embed.set_footer(text="Creado por Noel ❤️")
         await ctx.send(embed=embed)
 

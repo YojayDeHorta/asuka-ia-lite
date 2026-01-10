@@ -76,6 +76,8 @@
 | `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |
 | `!asuka [text]` | Asuka speaks the text in a voice channel. |
 | `!tts [text]` | Speaks the provided text directly. |
+| `!ver` / `!mira [image]` | Asuka comments on the attached image. |
+| `!recuerda [text]` | Asuka remembers a fact about you (Memory). |
 | `!status` | Shows server health stats. |
 
 ## 📂 Project Structure

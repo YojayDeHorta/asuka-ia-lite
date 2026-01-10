@@ -4,6 +4,10 @@ import google.generativeai as genai
 import edge_tts
 import config
 import os
+import database
+from PIL import Image
+import io
+import aiohttp
 
 # Configurar el modelo y la personalidad
 genai.configure(api_key=config.GEMINI_KEY)
@@ -21,7 +25,13 @@ class AI(commands.Cog):
     async def chat(self, ctx, *, pregunta):
         async with ctx.typing():
             try:
-                prompt_completo = f"Eres Asuka, un bot de música útil y sarcástico. Responde brevemente: {pregunta}"
+                # Recuperar memoria
+                memories = database.get_memory(ctx.author.id)
+                contexto_memoria = ""
+                if memories:
+                    contexto_memoria = "Lo que sabes de este usuario:\n" + "\n".join(f"- {m}" for m in memories)
+                
+                prompt_completo = f"Eres Asuka, un bot de música útil y sarcástico. {contexto_memoria}\nUsuario: {pregunta}\nResponde brevemente:"
                 
                 response = await chat_session.send_message_async(prompt_completo)
                 texto = response.text
@@ -33,6 +43,39 @@ class AI(commands.Cog):
                 
             except Exception as e:
                 await ctx.send(f"🤯 Error de IA: {e}")
+
+    @commands.command()
+    async def recuerda(self, ctx, *, dato):
+        """Asuka recordará esto sobre ti."""
+        database.add_memory(ctx.author.id, dato)
+        await ctx.send(f"🧠 **Memorizado:** {dato}")
+
+    @commands.command(aliases=['mira'])
+    async def ver(self, ctx, *, pregunta="¿Qué ves en esta imagen?"):
+        if not ctx.message.attachments:
+            return await ctx.send("❌ Adjunta una imagen para que la vea.")
+        
+        async with ctx.typing():
+            try:
+                attachment = ctx.message.attachments[0]
+                if not attachment.content_type.startswith('image/'):
+                    return await ctx.send("❌ Eso no parece una imagen.")
+
+                # Descargar imagen en memoria
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment.url) as resp:
+                        if resp.status != 200:
+                            return await ctx.send("❌ Error descargando imagen.")
+                        img_data = await resp.read()
+                
+                image = Image.open(io.BytesIO(img_data))
+                
+                prompt = f"Eres Asuka. Comenta esta imagen con tu personalidad sarcástica. Usuario dice: {pregunta}"
+                response = await model.generate_content_async([prompt, image])
+                
+                await ctx.send(f"👀 {response.text}")
+            except Exception as e:
+                await ctx.send(f"🤯 Error de visión: {e}")
 
     @commands.command()
     async def dj(self, ctx, *, mood):
