@@ -71,7 +71,7 @@
 | `!skip` | Skips the current song. |
 | `!pause` / `!resume` | Controls playback. |
 | `!queue` | Shows the current music queue. |
-| `!stop` | Disconnects the bot and clears the queue. |
+| `!stop` (or `!bye`, `!leave`) | Disconnects the bot and clears the queue. |
 | `!chat [text]` | Chat with Asuka (AI). |
 | `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |
 | `!asuka [text]` | Asuka speaks the text in a voice channel. |

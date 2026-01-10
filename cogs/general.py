@@ -9,7 +9,16 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(f'✨ Asuka lista y conectada como {self.bot.user}!')
-        await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="escribe !play para empezar o !help"))
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        # Si el bot está conectado y se queda solo
+        if self.bot.voice_clients:
+            for vc in self.bot.voice_clients:
+                if vc.channel and len(vc.channel.members) == 1:
+                    # Esperar un poco antes de salir (opcional, aquí es inmediato)
+                    # Podrías usar asyncio.sleep(60) para dar margen
+                    await vc.disconnect()
+                    print(f"Me salí de {vc.channel} porque me dejaron sola.")
 
     @commands.command()
     async def help(self, ctx):
@@ -18,7 +27,7 @@ class General(commands.Cog):
         embed.add_field(name="!skip", value="Salta a la siguiente canción.", inline=False)
         embed.add_field(name="!pause / !resume", value="Pausa o continua la música.", inline=False)
         embed.add_field(name="!queue", value="Muestra la lista de espera.", inline=False)
-        embed.add_field(name="!stop", value="Desconecta al bot.", inline=False)
+        embed.add_field(name="!stop / !bye", value="Desconecta al bot.", inline=False)
         embed.add_field(name="!chat [texto]", value="Chatea con Asuka (IA).", inline=False)
         embed.add_field(name="!dj [mood]", value="Pide una recomendación musical.", inline=False)
         embed.add_field(name="!asuka [texto]", value="Asuka te responde con voz.", inline=False)

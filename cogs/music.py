@@ -106,7 +106,7 @@ class Music(commands.Cog):
         embed.set_footer(text="Creado por Noel")
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(aliases=['leave', 'salir', 'disconnect', 'bye'])
     async def stop(self, ctx):
         if ctx.voice_client:
             self.queues[ctx.guild.id] = []
