@@ -1,0 +1,8 @@
+discord.py
+yt-dlp
+google-generativeai
+edge-tts
+psutil
+python-dotenv
+ffmpeg-python
+PyNaCl

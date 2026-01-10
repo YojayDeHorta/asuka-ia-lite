@@ -1,0 +1,41 @@
+import discord
+from discord.ext import commands
+import psutil
+
+class General(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f'✨ Asuka lista y conectada como {self.bot.user}!')
+        await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="escribe !play para empezar o !help"))
+
+    @commands.command()
+    async def help(self, ctx):
+        embed = discord.Embed(title="Ayuda de Asuka 🤖", color=discord.Color.pink())
+        embed.add_field(name="!play [nombre]", value="Pone música o la añade a la cola.", inline=False)
+        embed.add_field(name="!skip", value="Salta a la siguiente canción.", inline=False)
+        embed.add_field(name="!pause / !resume", value="Pausa o continua la música.", inline=False)
+        embed.add_field(name="!queue", value="Muestra la lista de espera.", inline=False)
+        embed.add_field(name="!stop", value="Desconecta al bot.", inline=False)
+        embed.add_field(name="!chat [texto]", value="Chatea con Asuka (IA).", inline=False)
+        embed.add_field(name="!dj [mood]", value="Pide una recomendación musical.", inline=False)
+        embed.add_field(name="!asuka [texto]", value="Asuka te responde con voz.", inline=False)
+        embed.set_footer(text="Creado por Noel ❤️")
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def status(self, ctx):
+        cpu_usage = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        
+        embed = discord.Embed(title="📟 Estado del Servidor", description="Monitoreo en tiempo real", color=discord.Color.teal())
+        embed.add_field(name="🧠 Uso de CPU", value=f"**{cpu_usage}%**", inline=True)
+        embed.add_field(name="💾 RAM Usada", value=f"**{memory.percent}%**\n({int(memory.used/1024/1024)}MB de {int(memory.total/1024/1024)}MB)", inline=True)
+        embed.add_field(name="🐧 Sistema", value="Linux", inline=False)
+        embed.set_footer(text="¡Sigo viva!")
+        await ctx.send(embed=embed)
+
+async def setup(bot):
+    await bot.add_cog(General(bot))

@@ -1,0 +1,21 @@
+# Environment Variables and Secrets
+.env
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python compiled files
+__pycache__/
+*.py[cod]
+
+# Temporary media files
+*.mp3
+respuesta.mp3
+
+# IDE and System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
