@@ -1,6 +1,9 @@
 import discord
 from discord.ext import commands
 import psutil
+from utils.logger import setup_logger
+
+logger = setup_logger("GeneralCog")
 
 class General(commands.Cog):
     def __init__(self, bot):

@@ -8,6 +8,9 @@ from utils import database
 from PIL import Image
 import io
 import aiohttp
+from utils.logger import setup_logger
+
+logger = setup_logger("AICog")
 
 # Configurar el modelo y la personalidad
 genai.configure(api_key=config.GEMINI_KEY)
@@ -66,7 +69,7 @@ class AI(commands.Cog):
                 vc.play(source)
                 
             except Exception as e:
-                print(f"Error en saludo tóxico: {e}")
+                logger.error(f"Error en saludo tóxico: {e}")
 
     @commands.command()
     async def chat(self, ctx, *, pregunta):

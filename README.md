@@ -91,7 +91,9 @@
 | `!pause` / `!resume` | Controls playback. |
 | `!volume [0-100]` | Adjusts music volume. |
 | `!queue` | Shows the current music queue. |
-| `!stop` (or `!bye`, `!leave`) | Disconnects the bot and clears the queue. |
+| `!np` | Shows the current song and progress bar. |
+| `!stop` | Stops playback and clears the queue (stays connected). |
+| `!leave` (or `!bye`, `!salir`) | Disconnects the bot from voice. |
 | `!chat [text]` | Chat with Asuka (AI). |
 | `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |
 | `!asuka [text]` | Asuka speaks the text in a voice channel. |
