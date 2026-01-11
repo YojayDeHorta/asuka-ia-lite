@@ -1,0 +1,8 @@
+services:
+  asuka-lite:
+    build: .
+    container_name: asuka-lite
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data  
+      - ./.env:/app/.env  

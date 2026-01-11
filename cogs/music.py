@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import yt_dlp
 import asyncio
-import database
+from utils import database
 import config
 
 # Opciones FFMPEG (Estabilidad para el Xiaomi)
@@ -27,9 +27,56 @@ class Music(commands.Cog):
 
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
-            source, title = self.queues[ctx.guild.id].pop(0)
-            ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
-            print(f"Reproduciendo siguiente: {title}")
+            # Recuperar item de la cola
+            item = self.queues[ctx.guild.id].pop(0)
+            
+            # Determinar tipo de item
+            # Formatos posibles:
+            # 1. (source, title) -> Legacy / Ready to play
+            # 2. ("PENDING_SEARCH", query) -> Requiere búsqueda en YT
+            # 3. (None, title, url) -> URL directa de YT, requiere extracción de audio
+            
+            source = None
+            title = "Desconocido"
+            
+            # Caso 1: Source ya listo
+            if len(item) == 2 and item[0] != "PENDING_SEARCH":
+                source, title = item
+                
+            # Caso 2: URL directa de YT (Playlists)
+            elif len(item) == 3:
+                _, title, url = item
+                try:
+                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+                except Exception as e:
+                    print(f"Error procesando URL diferida {title}: {e}")
+                    return self.check_queue(ctx) # Saltar a la siguiente
+            
+            # Caso 3: Búsqueda pendiente (Spotify)
+            elif item[0] == "PENDING_SEARCH":
+                query = item[1]
+                print(f"Resolviendo diferido: {query}")
+                try:
+                    # Búsqueda síncrona rápida (ya estamos en el loop del player)
+                    # Nota: Idealmente esto debería ser async, pero check_queue es callback síncrono de after=
+                    # Usaremos run_coroutine_threadsafe si fuera necesario, o bloquear brevemente (aceptable para 1 canción)
+                    data = ytdl.extract_info(query, download=False)
+                    if 'entries' in data:
+                        data = data['entries'][0]
+                    
+                    url = data['url']
+                    title = data['title']
+                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+                except Exception as e:
+                    print(f"Error buscando diferido {query}: {e}")
+                    return self.check_queue(ctx)
+
+            if source:
+                ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+                print(f"Reproduciendo siguiente: {title}")
+                asyncio.run_coroutine_threadsafe(ctx.send(f"▶️ **Ahora suena:** {title}"), self.bot.loop)
+            else:
+                self.check_queue(ctx) # Intentar siguiente si falló
         else:
             print("Cola terminada.")
 
@@ -44,15 +91,66 @@ class Music(commands.Cog):
 
         msg = await ctx.send(f"🔍 **Buscando:** `{query}`...")
 
+        if 'open.spotify.com' in query:
+            if not config.SPOTIPY_CLIENT_ID:
+                return await ctx.send("❌ Spotify no está configurado en el bot.")
+            
+            await msg.edit(content="🕵️‍♀️ **Analizando enlace de Spotify...**")
+            
+            try:
+                import spotipy
+                from spotipy.oauth2 import SpotifyClientCredentials
+                
+                sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+                    client_id=config.SPOTIPY_CLIENT_ID,
+                    client_secret=config.SPOTIPY_CLIENT_SECRET
+                ))
+                
+                track_names = []
+                
+                if 'track' in query:
+                    track = sp.track(query)
+                    track_names.append(f"{track['artists'][0]['name']} - {track['name']}")
+                elif 'playlist' in query:
+                    results = sp.playlist_tracks(query)
+                    for item in results['items']:
+                        track = item['track']
+                        track_names.append(f"{track['artists'][0]['name']} - {track['name']}")
+                
+                await msg.edit(content=f"🎶 **Encontré {len(track_names)} canciones de Spotify.** Añadiendo...")
+                
+                # Procesar la primera o única canción inmediatamente
+                first_query = track_names.pop(0)
+                # El resto se añadirán en background para no bloquear
+                for t in track_names:
+                     self.queues[ctx.guild.id].append(("PENDING_SEARCH", t))
+                
+                query = first_query
+                
+            except Exception as e:
+                print(f"Error Spotify: {e}")
+                return await msg.edit(content="❌ Error leyendo Spotify.")
+
+        # YouTube Search / Extraction
         loop = asyncio.get_event_loop()
         try:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
         except Exception as e:
             return await msg.edit(content="❌ Error buscando la canción.")
 
+        # Manejo de Playlists de YouTube / Entradas múltiples
+        added_songs = []
         if 'entries' in data:
-            data = data['entries'][0]
-        
+            # Es una playlist o búsqueda
+            entries = list(data['entries'])
+            first_entry = entries.pop(0)
+            data = first_entry # La que sonará ya
+            
+            # Añadir el resto a la cola
+            for entry in entries:
+                self.queues[ctx.guild.id].append((None, entry['title'], entry['url'])) # Formato especial para YT
+                added_songs.append(entry['title'])
+                
         url = data['url']
         title = data['title']
         source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
@@ -108,8 +206,16 @@ class Music(commands.Cog):
             return await ctx.send("📭 La cola está vacía.")
         
         lista = ""
-        for i, (source, title) in enumerate(self.queues[guild_id]):
-            lista += f"**{i+1}.** {title}\n"
+        for i, item in enumerate(self.queues[guild_id]):
+            # Adaptar visualización según formato
+            if len(item) == 2 and item[0] == "PENDING_SEARCH":
+                title_show = f"{item[1]} (Pendiente...)"
+            elif len(item) == 3:
+                title_show = item[1]
+            else:
+                title_show = item[1]
+                
+            lista += f"**{i+1}.** {title_show}\n"
         
         embed = discord.Embed(title="📜 Cola de Reproducción", description=lista, color=discord.Color.gold())
         embed.set_footer(text="Creado por Noel")

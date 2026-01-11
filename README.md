@@ -64,6 +64,24 @@
     python main.py
     ```
 
+### 🐳 Docker (Optional - Recommended for 24/7)
+
+1.  **Build and Run**:
+    ```bash
+    docker-compose up -d
+    ```
+    That's it! The bot will run in the background.
+
+2.  **View Logs**:
+    ```bash
+    docker-compose logs -f
+    ```
+
+3.  **Stop**:
+    ```bash
+    docker-compose down
+    ```
+
 ## 📜 Commands
 
 | Command | Description |

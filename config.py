@@ -13,6 +13,13 @@ if not TOKEN:
 if not GEMINI_KEY:
     raise ValueError("No GEMINI_KEY found in .env file")
 
+# Spotify Secrets (Opcionales, solo warn si faltan)
+SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
+SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
+
+if not SPOTIPY_CLIENT_ID or not SPOTIPY_CLIENT_SECRET:
+    print("⚠️ Spotify no configurado. Los enlaces de Spotify no funcionarán.")
+
 # Load Settings
 SETTINGS_FILE = 'settings.json'
 try:

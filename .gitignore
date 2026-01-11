@@ -11,8 +11,7 @@ __pycache__/
 *.py[cod]
 
 # Temporary media files
-*.mp3
-respuesta.mp3
+temp/
 
 # Databases
 *.db

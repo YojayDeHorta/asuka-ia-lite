@@ -4,7 +4,7 @@ import google.generativeai as genai
 import edge_tts
 import config
 import os
-import database
+from utils import database
 from PIL import Image
 import io
 import aiohttp
@@ -59,7 +59,7 @@ class AI(commands.Cog):
                     pitch=config.TTS_PITCH
                 )
                 
-                archivo = "saludo_temp.mp3"
+                archivo = "temp/saludo_temp.mp3"
                 await communicate.save(archivo)
                 
                 source = discord.FFmpegPCMAudio(archivo)
@@ -183,7 +183,7 @@ class AI(commands.Cog):
                 )
                 
                 # Usar archivo temporal en el directorio actual
-                archivo_audio = "respuesta.mp3"
+                archivo_audio = "temp/respuesta.mp3"
                 await communicate.save(archivo_audio)
 
                 if ctx.voice_client.is_playing():
@@ -213,7 +213,7 @@ class AI(commands.Cog):
                     pitch=config.TTS_PITCH
                 )
                 
-                archivo_audio = "tts_output.mp3"
+                archivo_audio = "temp/tts_output.mp3"
                 await communicate.save(archivo_audio)
 
                 if ctx.voice_client.is_playing():
