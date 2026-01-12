@@ -210,10 +210,14 @@ class Music(commands.Cog):
 
                 asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
                 
-                # --- PREFETCH TRIGGER ---
-                # Si Radio ON y Cola vacía (este era el último), generar siguiente YA
-                if self.radio_active.get(ctx.guild.id, False):
-                     if not self.queues[ctx.guild.id] and ctx.guild.id not in self.radio_processing:
+                # --- PREFETCH TRIGGERS ---
+                if self.queues[ctx.guild.id]:
+                     # Hay más canciones en cola manual -> Intentar resolver la siguiente para evitar lag
+                     asyncio.run_coroutine_threadsafe(self._prefetch_manual_queue(ctx), self.bot.loop)
+                     
+                elif self.radio_active.get(ctx.guild.id, False):
+                     # Cola vacía y Radio ON -> Generar siguiente de radio (si no hay nada pendiente)
+                     if ctx.guild.id not in self.radio_processing:
                          logger.info("📻 Prefetching next radio song...")
                          self.radio_processing.add(ctx.guild.id)
                          asyncio.run_coroutine_threadsafe(self._queue_radio_song(ctx), self.bot.loop)
@@ -548,6 +552,55 @@ class Music(commands.Cog):
             await ctx.send(f"🎙️ **Modo Locutora cambiado a:** `{mode}`")
         else:
             await ctx.send("❌ Opción inválida. Usa: `FULL`, `TEXT`, o `MUTE`.")
+
+    async def _prefetch_manual_queue(self, ctx):
+        """Intenta resolver la siguiente canción de la cola manual (Spotify/Youtube Prio) en background."""
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            return
+            
+        # Capturamos el objetivo por referencia (identidad)
+        target_item = self.queues[guild_id][0]
+        
+        # Solo nos interesa resolver búsquedas pendientes
+        # Si ya es un source (tuple len 2 or 3 with AudioSource) o URL (tuple len 3/4 with None),
+        # podriamos querer "refrescar" la URL si es vieja, pero por ahora solo PENDING_SEARCH es el blocker principal.
+        
+        is_pending = False
+        query = ""
+        
+        if isinstance(target_item, tuple) and len(target_item) >= 2:
+             if target_item[0] == "PENDING_SEARCH":
+                 is_pending = True
+                 query = target_item[1]
+        
+        if not is_pending:
+            return
+
+        logger.info(f"⏭️ Prefetching Manual Item: {query}")
+        
+        try:
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
+            
+            if 'entries' in data: 
+                data = data['entries'][0]
+            
+            # Construir item resuelto (Formato 5: None, title, url, duration)
+            resolved_item = (None, data['title'], data['url'], data.get('duration', 0))
+            
+            # --- CRITICAL: Identity Check ---
+            # Verificamos si el item en la posición 0 SIGUE SIENDO el que intentamos resolver.
+            # Si el usuario hizo !skip, el item 0 habrá cambiado y no debemos tocarlo.
+            if guild_id in self.queues and self.queues[guild_id]:
+                if self.queues[guild_id][0] is target_item:
+                    self.queues[guild_id][0] = resolved_item
+                    logger.info(f"✅ Manual Prefetch Success: {data['title']}")
+                else:
+                    logger.info("⚠️ Manual Prefetch Discarded: Queue changed (Race Condition handled).")
+                    
+        except Exception as e:
+            logger.error(f"Error manual prefetch {query}: {e}")
 
     async def _queue_radio_song(self, ctx):
         """Genera contenido de radio y lo AÑADE A LA COLA (Prefetch)."""
