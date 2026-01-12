@@ -23,6 +23,8 @@ chat_session = model.start_chat(history=[])
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Asegurar directorio temporal
+        os.makedirs('temp', exist_ok=True)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
