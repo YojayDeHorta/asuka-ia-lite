@@ -91,6 +91,7 @@ class Music(commands.Cog):
         self.queues = {}
         self.current_song_info = {} # {guild_id: {'start_time': 0, 'duration': 0, 'title': 'name'}}
         self.radio_active = {} # {guild_id: bool}
+        self.radio_processing = set() # {guild_id} to prevent race conditions
 
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
@@ -161,7 +162,9 @@ class Music(commands.Cog):
                 
                 async def send_np():
                     view = MusicControlView(ctx, self)
-                    await ctx.send(f"▶️ **Ahora suena:** {title}", view=view)
+                    m, s = divmod(int(duration), 60)
+                    dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
+                    await ctx.send(f"▶️ **Ahora suena:** {title} **{dur_str}**", view=view)
 
                 asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
             else:
@@ -169,8 +172,10 @@ class Music(commands.Cog):
         else:
             # Cola terminada
             if self.radio_active.get(ctx.guild.id, False):
-                logger.info("📻 Cola vacía. Modo Radio activado. Buscando canción...")
-                asyncio.run_coroutine_threadsafe(self._play_radio_song(ctx), self.bot.loop)
+                if ctx.guild.id not in self.radio_processing:
+                    logger.info("📻 Cola vacía. Modo Radio activado. Buscando canción...")
+                    self.radio_processing.add(ctx.guild.id)
+                    asyncio.run_coroutine_threadsafe(self._play_radio_song(ctx), self.bot.loop)
             else:
                 print("Cola terminada.")
 
@@ -237,15 +242,18 @@ class Music(commands.Cog):
         if 'entries' in data:
             # Es una playlist o búsqueda
             entries = list(data['entries'])
-            first_entry = entries.pop(0)
-            data = first_entry # La que sonará ya
-            
-            # Añadir el resto a la cola
-            for entry in entries:
-                # Intentar sacar duración
-                e_duration = entry.get('duration', 0)
-                self.queues[ctx.guild.id].append((None, entry['title'], entry['url'], e_duration))
-                added_songs.append(entry['title'])
+            if entries:
+                first_entry = entries.pop(0)
+                data = first_entry # La que sonará ya
+                
+                # Añadir el resto a la cola
+                for entry in entries:
+                    # Intentar sacar duración
+                    e_duration = entry.get('duration', 0)
+                    self.queues[ctx.guild.id].append((None, entry['title'], entry['url'], e_duration))
+                    added_songs.append(entry['title'])
+            else:
+                 return await msg.edit(content="❌ No encontré resultados para esa búsqueda.")
                 
         url = data['url']
         title = data['title']
@@ -279,7 +287,10 @@ class Music(commands.Cog):
             }
             
             view = MusicControlView(ctx, self)
-            embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**", color=discord.Color.green())
+            m, s = divmod(int(duration), 60)
+            dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
+            
+            embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**\n⏱️ {dur_str}", color=discord.Color.green())
             embed.set_footer(text="Creado por Noel ❤️")
             await msg.delete()
             await ctx.send(embed=embed, view=view)
@@ -420,41 +431,121 @@ class Music(commands.Cog):
         else:
             await ctx.send("rofl **Radio Asuka: APAGADA** 💤")
 
+    @commands.command()
+    async def resetradio(self, ctx):
+        """Borra el historial musical para reiniciar la 'memoria' de la radio."""
+        try:
+            database.clear_music_history()
+            await ctx.send("🧹 **Historial musical borrado.**\nAhora la radio empezará de cero con los géneros que pongas.")
+        except Exception as e:
+            logger.error(f"Error resetradio: {e}")
+            await ctx.send("❌ Error borrando historial.")
+
     async def _play_radio_song(self, ctx):
         """Genera y reproduce una canción para el modo radio."""
         try:
-            # Pedir recomendación a Gemini (usando el cog de AI si es posible, o directamente el modelo si se prefiere)
-            # Para simplificar y no depender circularmente del AI cog instance facilmente, 
-            # podemos importar el modelo y config aquí o usar database para leer gustos.
+            # Imports locales para evitar ciclos
+            import google.generativeai as genai
+            import edge_tts
+            import json
+            import re
             
+            # --- Generación de Contenido ---
             # Recuperar historial reciente
-            recent_songs = database.get_recent_songs(limit=15) # Leemos 15 para tener contexto
+            recent_songs = database.get_recent_songs(limit=15)
             
             context_str = ""
             if recent_songs:
-                # Filtrar posibles duplicados consecutivos visualmente
                 unique_recent = []
                 vis = set()
                 for s in recent_songs:
                     if s not in vis:
                         unique_recent.append(s)
                         vis.add(s)
-                
-                context_str = "Canciones recientes que sonaron: " + ", ".join(unique_recent[:10]) + "."
+                context_str = "Canciones recientes: " + ", ".join(unique_recent[:10]) + "."
+                logger.info(f"🔍 Radio Context: {context_str}")
             
             prompt = (
                 f"Eres un DJ experto. {context_str} "
-                "Basándote en este estilo, recomienda una canción similar para mantener el 'vibe'. "
-                "Responde SOLO el nombre (Artista - Canción)."
+                "Tu tarea es elegir la siguiente canción BASÁNDOTE EXCLUSIVAMENTE EN EL GÉNERO Y VIBE del historial reciente. "
+                " IMPORTANTE: NO REPITAS ninguna de las canciones recientes. Debes elegir algo NUEVO. "
+                "Si escuchan Pop/Rock, pon Pop/Rock. Si escuchan Anime, pon Anime. NO fuerces música de anime si no pega con el historial. "
+                "Además, genera una intro corta (máx 15 palabras) con personalidad de 'locutora Tsundere de anime' (burlona pero linda). "
+                "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
             )
-            
-            # Si podemos acceder al modelo desde aquí...
-            # Vamos a importar genai aquí también, es más limpio.
-            import google.generativeai as genai
+
             genai.configure(api_key=config.GEMINI_KEY)
             model = genai.GenerativeModel(config.AI_MODEL) 
             
             resp = await model.generate_content_async(prompt)
+            text_full = resp.text.strip()
+            
+            # --- Parseo Robusto ---
+            song_name = "Daft Punk - One More Time" # Fallback por defecto
+            intro = "Kora, escucha esto."
+            
+            # Buscar JSON con Regex
+            json_match = re.search(r"\{.*\}", text_full, re.DOTALL)
+            
+            if json_match:
+                json_str = json_match.group(0)
+                try:
+                    data = json.loads(json_str)
+                    song_name = data.get("song", song_name)
+                    intro = data.get("intro", intro)
+                except Exception as e:
+                    logger.error(f"Error JSON parse: {e}")
+            else:
+                 # Fallback manual si no hay JSON (intentar limpiar markdown)
+                 clean_text = text_full.replace("```json", "").replace("```", "").strip()
+                 # Si parece un JSON simple intentar parsear
+                 if clean_text.startswith("{"):
+                     try:
+                         data = json.loads(clean_text)
+                         song_name = data.get("song", song_name)
+                         intro = data.get("intro", intro)
+                     except: pass
+            
+            logger.info(f"📻 Radio eligió: {song_name} | Intro: {intro}")
+            
+            # --- TTS ---
+            temp_file = "temp/radio_intro.mp3"
+            communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
+            await communicate.save(temp_file)
+            
+            # --- Definir CALLBACK para después del TTS ---
+            # Esto se ejecutará cuando la intro termine de hablar
+            def play_song_after_intro(error):
+                if error:
+                    logger.error(f"Error en intro radio: {error}")
+                
+                async def launch_song():
+                    try:
+                        # Limpiar flag de procesando
+                        if ctx.guild.id in self.radio_processing:
+                            self.radio_processing.remove(ctx.guild.id)
+                        # Tocar la canción
+                        await self.play(ctx, query=song_name)
+                    except Exception as e:
+                         logger.error(f"Error lanzando canción radio: {e}")
+                
+                # Ejecutar play en el loop principal
+                asyncio.run_coroutine_threadsafe(launch_song(), self.bot.loop)
+
+            # --- Reproducir Intro ---
+            if ctx.voice_client:
+                # No llamamos a stop() aquí porque venimos de check_queue, asumimos que está libre
+                # Si llamamos stop() podríamos disparar triggers recursivos
+                
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(temp_file), volume=config.DEFAULT_VOLUME * 1.2) # Un poco mas alto
+                ctx.voice_client.play(source, after=play_song_after_intro)
+                await ctx.send(f"🎙️ **Asuka:** *{intro}*")
+                
+        except Exception as e:
+            logger.error(f"Error general radio: {e}")
+            # Limpiar flag en caso de error fatal
+            if ctx.guild.id in self.radio_processing:
+                self.radio_processing.remove(ctx.guild.id)
                 song_name = resp.text.strip()
                 
                 logger.info(f"� Radio eligió: {song_name}")

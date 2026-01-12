@@ -79,3 +79,15 @@ def clear_memory(user_id):
         logger.info(f"Memoria borrada para {user_id}")
     except Exception as e:
         logger.error(f"Error borrando memoria: {e}")
+
+def clear_music_history():
+    try:
+        ensure_db()
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("DELETE FROM music_history")
+        conn.commit()
+        conn.close()
+        logger.info("Historial musical borrado.")
+    except Exception as e:
+        logger.error(f"Error borrando historial musical: {e}")
