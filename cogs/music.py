@@ -78,12 +78,36 @@ class MusicControlView(discord.ui.View):
              return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
              
         # Reutilizar el comando stop
+        # Desactivar radio automáticamente al parar manualmente
+        if self.ctx.guild.id in self.music_cog.radio_active:
+             self.music_cog.radio_active[self.ctx.guild.id] = None
+             
         await self.music_cog.stop(self.ctx)
         # Deshabilitar botones después de parar
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
+        await interaction.message.edit(view=self)
         await interaction.response.send_message("🛑 Detenido por botón.", ephemeral=True)
+
+    @discord.ui.button(emoji="👎", style=discord.ButtonStyle.secondary)
+    async def dislike_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
+             return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
+             
+        # Borrar del historial
+        try:
+            database.delete_last_history_entry(self.ctx.author.id)
+        except Exception as e:
+            logger.error(f"Error dislike DB: {e}")
+            
+        # Reutilizar lógica de skip
+        vc = self.ctx.voice_client
+        if vc and vc.is_playing():
+            vc.stop()
+            await interaction.response.send_message("👎 **No te gustó. Saltando y olvidando...**", ephemeral=True)
+        else:
+             await interaction.response.send_message("❌ Nada sonando.", ephemeral=True)
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -409,27 +433,47 @@ class Music(commands.Cog):
             # Detener reproducción (esto disparará el after callback, pero como la cola está vacía no sonará nada)
             if ctx.voice_client.is_playing():
                 ctx.voice_client.stop()
-                
-            await ctx.send("🛑 **Música detenida y cola limpiada.**")
+            
+            # Desactivar radio si estaba activa
+            if ctx.guild.id in self.radio_active and self.radio_active[ctx.guild.id]:
+                self.radio_active[ctx.guild.id] = None
+                await ctx.send("🛑 **Música detenida y Radio APAGADA.**")
+            else:
+                await ctx.send("🛑 **Música detenida y cola limpiada.**")
         else:
             await ctx.send("❌ No estoy reproducinedo nada.")
 
     @commands.command()
-    async def radio(self, ctx):
-        """Activa/Desactiva el modo Radio 24/7 (Smart DJ)."""
+    async def radio(self, ctx, *, query=None):
+        """
+        Controla la Radio Inteligente.
+        Uso: 
+        - !radio -> Activa/Desactiva modo automático (por historial).
+        - !radio Daft Punk -> Activa radio SOLO de Daft Punk.
+        """
         guild_id = ctx.guild.id
-        status = self.radio_active.get(guild_id, False)
+        current_mode = self.radio_active.get(guild_id, None)
         
-        self.radio_active[guild_id] = not status
-        new_status = self.radio_active[guild_id]
-        
-        if new_status:
-            await ctx.send("📻 **Radio Asuka: ACTIVADA** 📡\n*Si la cola se vacía, pondré música basada en tus gustos.*")
-            # Si no suena nada, arrancar
+        if query:
+            # Modo específico (siempre activa o cambia)
+            self.radio_active[guild_id] = f"SPECIFIC:{query}"
+            await ctx.send(f"📻 **Radio Asuka: {query}** 📡\n*Solo pondré canciones de: {query}.*")
+            # Arrancar si hace falta
             if not ctx.voice_client.is_playing() and (guild_id not in self.queues or not self.queues[guild_id]):
-                self.check_queue(ctx) 
-        else:
+                self.check_queue(ctx)
+            return
+
+        # Toggle simple (!radio sin argumentos)
+        if current_mode:
+            # Si estaba encendida (cualquier modo), se apaga
+            self.radio_active[guild_id] = None
             await ctx.send("rofl **Radio Asuka: APAGADA** 💤")
+        else:
+            # Se enciende en modo automático
+            self.radio_active[guild_id] = "AUTO"
+            await ctx.send("📻 **Radio Asuka: AUTOMÁTICA** 📡\n*Pondré música basada en tu historial reciente.*")
+            if not ctx.voice_client.is_playing() and (guild_id not in self.queues or not self.queues[guild_id]):
+                self.check_queue(ctx)
 
     @commands.command()
     async def resetradio(self, ctx):
@@ -451,10 +495,10 @@ class Music(commands.Cog):
             import re
             
             # --- Generación de Contenido ---
-            # Recuperar historial reciente
+            # --- Generación de Contenido ---
+            # Recuperar historial siempre para evitar repeticiones
             recent_songs = database.get_recent_songs(limit=15)
-            
-            context_str = ""
+            context_history = ""
             if recent_songs:
                 unique_recent = []
                 vis = set()
@@ -462,14 +506,32 @@ class Music(commands.Cog):
                     if s not in vis:
                         unique_recent.append(s)
                         vis.add(s)
-                context_str = "Canciones recientes: " + ", ".join(unique_recent[:10]) + "."
-                logger.info(f"🔍 Radio Context: {context_str}")
+                context_history = ". ".join(unique_recent[:10])
+                logger.info(f"🔍 Radio Context ({len(unique_recent)}): {context_history}")
+
+            # Verificar modo
+            radio_mode = self.radio_active.get(ctx.guild.id, "AUTO")
             
+            prompt_instruction = ""
+            if radio_mode and radio_mode.startswith("SPECIFIC:"):
+                 target = radio_mode.split(":", 1)[1]
+                 prompt_instruction = (
+                     f"Tu tarea es elegir la siguiente canción OBLIGATORIAMENTE relacionada con: '{target}'. "
+                     f"Si es un artista, pon SOLO canciones de ese artista o colaboraciones directas. "
+                     f"IMPORTANTE: NO REPITAS ninguna de las siguientes canciones recientes: [{context_history}]. "
+                     f"Si ya sonaron todas los éxitos, busca canciones menos conocidas (deep cuts) de '{target}'."
+                 )
+            else:
+                # Modo AUTO (Historial)
+                prompt_instruction = (
+                    f"Eres un DJ experto. Canciones recientes: {context_history}. "
+                    "Tu tarea es elegir la siguiente canción BASÁNDOTE EXCLUSIVAMENTE EN EL GÉNERO Y VIBE del historial reciente. "
+                    "IMPORTANTE: NO REPITAS ninguna de las canciones recientes. Debes elegir algo NUEVO. "
+                    "Si escuchan Pop/Rock, pon Pop/Rock. Si escuchan Anime, pon Anime. NO fuerces música de anime si no pega con el historial. "
+                )
+
             prompt = (
-                f"Eres un DJ experto. {context_str} "
-                "Tu tarea es elegir la siguiente canción BASÁNDOTE EXCLUSIVAMENTE EN EL GÉNERO Y VIBE del historial reciente. "
-                " IMPORTANTE: NO REPITAS ninguna de las canciones recientes. Debes elegir algo NUEVO. "
-                "Si escuchan Pop/Rock, pon Pop/Rock. Si escuchan Anime, pon Anime. NO fuerces música de anime si no pega con el historial. "
+                f"{prompt_instruction} "
                 "Además, genera una intro corta (máx 15 palabras) con personalidad de 'locutora Tsundere de anime' (burlona pero linda). "
                 "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
             )

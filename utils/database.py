@@ -91,3 +91,15 @@ def clear_music_history():
         logger.info("Historial musical borrado.")
     except Exception as e:
         logger.error(f"Error borrando historial musical: {e}")
+
+def delete_last_history_entry(user_id):
+    try:
+        ensure_db()
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        # Borrar la entrada más reciente de este usuario
+        c.execute("DELETE FROM music_history WHERE id = (SELECT id FROM music_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1)", (user_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error borrando última entrada: {e}")

@@ -32,6 +32,8 @@ class General(commands.Cog):
         embed.add_field(name="!pause / !resume", value="Pausa o continua la música.", inline=False)
         embed.add_field(name="!queue", value="Muestra la lista de espera.", inline=False)
         embed.add_field(name="!stop / !bye", value="Desconecta al bot.", inline=False)
+        embed.add_field(name="!radio [artista?]", value="Activa Radio Inteligente (Auto o por Artista).", inline=False)
+        embed.add_field(name="!resetradio", value="Borra el historial de la radio.", inline=False)
         embed.add_field(name="!chat [texto]", value="Chatea con Asuka (IA).", inline=False)
         embed.add_field(name="!dj [mood]", value="Pide una recomendación musical.", inline=False)
         embed.add_field(name="!asuka [texto]", value="Asuka te responde con voz.", inline=False)
