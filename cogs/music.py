@@ -118,6 +118,7 @@ class Music(commands.Cog):
         self.radio_active = {} # {guild_id: bool or string}
         self.radio_processing = set() # {guild_id} to prevent race conditions
         self.announcer_mode = {} # {guild_id: "FULL"|"TEXT"|"MUTE"}
+        self.now_playing_messages = {} # {guild_id: discord.Message}
 
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
@@ -199,14 +200,52 @@ class Music(commands.Cog):
                 self.current_song_info[ctx.guild.id] = {
                     'start_time': time.time(),
                     'duration': duration,
-                    'title': title
+                    'title': title,
+                    'is_radio': is_radio_prefetch,
+                    'requester': ctx.author.display_name
                 }
                 
                 async def send_np():
                     view = MusicControlView(ctx, self)
                     m, s = divmod(int(duration), 60)
                     dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
-                    await ctx.send(f"▶️ **Ahora suena:** {title} **{dur_str}**", view=view)
+                    
+                    embed = discord.Embed(title="▶️ Ahora Suena", description=f"**{title}**", color=discord.Color.green())
+                    embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
+                    
+                    embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
+                    
+                    # --- Next Song Preview ---
+                    next_str = self._get_next_song_peek(ctx.guild.id)
+                    
+                    embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
+
+                    # --- Footer Info (Station / DJ) ---
+
+                    # --- Footer Info (Station / DJ) ---
+                    radio_status = self.radio_active.get(ctx.guild.id)
+                    
+                    if is_radio_prefetch:
+                         # Es canción de radio
+                         footer_text = "👤 DJ: Asuka AI 🤖"
+                         if radio_status and isinstance(radio_status, str) and radio_status.startswith("SPECIFIC:"):
+                             station = radio_status.split(":", 1)[1]
+                             embed.set_author(name=f"📻 Estación: {station}")
+                         else:
+                             embed.set_author(name="📻 Estación: Mix Automático")
+                    else:
+                         # Es canción de usuario
+                         footer_text = f"👤 Pedido por: {ctx.author.display_name}"
+                         embed.set_author(name="📀 Reproducción Manual")
+                    
+                    # Credit Update
+                    embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
+                        
+                    # Credit Update
+                    embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
+                        
+                    msg = await ctx.send(embed=embed, view=view)
+                    self.now_playing_messages[ctx.guild.id] = msg
 
                 asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
                 
@@ -348,6 +387,9 @@ class Music(commands.Cog):
             embed.set_footer(text="Creado por Noel ❤️")
             await msg.delete()
             await ctx.send(embed=embed)
+            
+            # Update Now Playing Next info
+            await self._update_np_embed(ctx)
         else:
             ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
             
@@ -362,8 +404,14 @@ class Music(commands.Cog):
             m, s = divmod(int(duration), 60)
             dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
             
-            embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**\n⏱️ {dur_str}", color=discord.Color.green())
-            embed.set_footer(text="Creado por Noel ❤️")
+            # --- Next Song Preview ---
+            next_str = self._get_next_song_peek(ctx.guild.id)
+
+            embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**", color=discord.Color.green())
+            embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
+            embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
+            embed.set_author(name="📀 Reproducción Manual")
+            embed.set_footer(text=f"👤 Pedido por: {ctx.author.display_name} | Creado por Noel ❤️")
             await msg.delete()
             await ctx.send(embed=embed, view=view)
 
@@ -553,6 +601,94 @@ class Music(commands.Cog):
         else:
             await ctx.send("❌ Opción inválida. Usa: `FULL`, `TEXT`, o `MUTE`.")
 
+    def _get_next_song_peek(self, guild_id):
+        """Helper para obtener el string de la siguiente canción (saltando intros)."""
+        if guild_id not in self.queues or not self.queues[guild_id]:
+             if self.radio_active.get(guild_id):
+                 return "🔄 Generando Mix..."
+             return "Nada por ahora..."
+             
+        def resolve_item(idx):
+            if idx >= len(self.queues[guild_id]): return None
+            val = self.queues[guild_id][idx]
+            is_rad = False
+            # Unwrap
+            if isinstance(val, tuple) and len(val) > 0 and val[0] == "RADIO_CANDIDATE":
+                val = val[1]
+                is_rad = True
+            return val, is_rad
+
+        # Look at 0
+        item, is_radio = resolve_item(0)
+        
+        # If intro, look at 1
+        if item and isinstance(item, tuple) and len(item) > 0 and item[0] in ["INTRO", "TEXT_INTRO"]:
+            next_res = resolve_item(1)
+            if next_res:
+                item, set_radio = next_res
+                # Usually if intro was radio, song is radio
+                is_radio = is_radio or set_radio
+            else:
+                return "🎙️ (Comentario de Asuka)..."
+
+        # Extract Title
+        title = "Desconocido"
+        if isinstance(item, tuple):
+            if len(item) > 0 and item[0] == "PENDING_SEARCH":
+                title = item[1]
+            elif len(item) >= 2:
+                title = item[1]
+        
+        req = "Asuka AI 🤖" if is_radio else "Usuario"
+        return f"{title} | 👤 {req}"
+
+    async def _update_np_embed(self, ctx):
+        """Actualiza el mensaje de 'Ahora Suena' con la nueva información de la cola (Next Song)."""
+        guild_id = ctx.guild.id
+        if guild_id not in self.now_playing_messages or guild_id not in self.current_song_info:
+            return
+
+        msg = self.now_playing_messages[guild_id]
+        info = self.current_song_info[guild_id]
+        
+        # Recalcular Next String usando el Helper
+        next_str = self._get_next_song_peek(guild_id)
+
+        # Reconstruir Embed
+
+        # Reconstruir Embed
+        # Recuperamos datos guardados
+        title = info.get('title', 'Desconocido')
+        duration = info.get('duration', 0)
+        is_radio = info.get('is_radio', False)
+        
+        m, s = divmod(int(duration), 60)
+        dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
+        
+        embed = discord.Embed(title="▶️ Ahora Suena", description=f"**{title}**", color=discord.Color.green())
+        embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
+        embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
+        
+        radio_status = self.radio_active.get(ctx.guild.id)
+        if is_radio:
+             footer_text = "👤 DJ: Asuka AI 🤖"
+             if radio_status and isinstance(radio_status, str) and radio_status.startswith("SPECIFIC:"):
+                 station = radio_status.split(":", 1)[1]
+                 embed.set_author(name=f"📻 Estación: {station}")
+             else:
+                 embed.set_author(name="📻 Estación: Mix Automático")
+        else:
+             req_by = info.get('requester', ctx.guild.me.display_name) # Fallback
+             footer_text = f"👤 Pedido por: {req_by}"
+             embed.set_author(name="📀 Reproducción Manual")
+        
+        embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
+        
+        try:
+            await msg.edit(embed=embed)
+        except Exception as e:
+            logger.error(f"Error updating NP embed: {e}")
+
     async def _prefetch_manual_queue(self, ctx):
         """Intenta resolver la siguiente canción de la cola manual (Spotify/Youtube Prio) en background."""
         guild_id = ctx.guild.id
@@ -596,6 +732,8 @@ class Music(commands.Cog):
                 if self.queues[guild_id][0] is target_item:
                     self.queues[guild_id][0] = resolved_item
                     logger.info(f"✅ Manual Prefetch Success: {data['title']}")
+                    # Trigger visual update
+                    await self._update_np_embed(ctx)
                 else:
                     logger.info("⚠️ Manual Prefetch Discarded: Queue changed (Race Condition handled).")
                     
@@ -719,6 +857,9 @@ class Music(commands.Cog):
             for item in queue_items:
                 # Envolvemos en RADIO_CANDIDATE para identificarlo y borrarlo si el usuario usa !play
                 self.queues[ctx.guild.id].append(("RADIO_CANDIDATE", item))
+            
+            # Trigger Visual Update
+            await self._update_np_embed(ctx)
                 
         except Exception as e:
             logger.error(f"Error general radio queueing: {e}")

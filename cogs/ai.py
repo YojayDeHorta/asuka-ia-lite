@@ -164,7 +164,7 @@ class AI(commands.Cog):
                 await ctx.send(f"🤯 Error eligiendo: {e}")
 
     @commands.command()
-    async def asuka(self, ctx, *, pregunta):
+    async def asuka(self, ctx, *, pregunta=None):
         if not ctx.message.author.voice:
             return await ctx.send("❌ ¡Entra a un canal de voz para que pueda hablarte!")
             
@@ -174,7 +174,24 @@ class AI(commands.Cog):
 
         async with ctx.typing():
             try:
-                prompt = f"Eres Asuka. Responde a esto de forma corta y charlada (máximo 2 frases): {pregunta}"
+                # Recuperar memoria para personalizar el saludo
+                memories = database.get_memory(ctx.author.id)
+                contexto_memoria = ""
+                if memories:
+                    contexto_memoria = "Sabes esto de él: " + ", ".join(memories) + "."
+
+                if pregunta is None:
+                    # Caso: Saludo / Join sin argumentos
+                    prompt = (
+                        f"Eres Asuka. El usuario {ctx.author.display_name} te ha invocado al canal de voz. "
+                        f"{contexto_memoria} "
+                        "Salúdalo de forma natural (máximo 15 palabras), con tu personalidad Tsundere (linda pero burlona). "
+                        "No preguntes 'qué quieres', solo saluda o comenta que ya llegaste."
+                    )
+                else:
+                    # Caso: Pregunta normal
+                    prompt = f"Eres Asuka. Responde a esto de forma corta y charlada (máximo 2 frases): {pregunta}. {contexto_memoria}"
+
                 response = await chat_session.send_message_async(prompt)
                 texto_respuesta = response.text.replace("*", "")
                 
