@@ -8,6 +8,7 @@ from utils import database
 from PIL import Image
 import io
 import aiohttp
+import uuid
 from utils.logger import setup_logger
 
 logger = setup_logger("AICog")
@@ -26,6 +27,48 @@ class AI(commands.Cog):
         # Asegurar directorio temporal
         os.makedirs('temp', exist_ok=True)
 
+    async def generate_greeting_audio(self, user, prompt_override=None):
+        """Genera un saludo de audio para el usuario y devuelve la ruta del archivo."""
+        try:
+            memories = database.get_memory(user.id)
+            contexto = ""
+            if memories:
+                contexto = f"Sabes esto de él: {', '.join(memories)}."
+            
+            if prompt_override:
+                prompt = prompt_override.format(user=user.display_name, context=contexto)
+            else:
+                prompt = (
+                    f"Eres Asuka. El usuario {user.display_name} acaba de entrar. "
+                    f"{contexto} "
+                    "Salúdalo con una frase corta (máx 10 palabras), tóxica o sarcástica."
+                )
+            
+            # Generar Texto
+            if prompt_override and "chat_session" in prompt_override: # Hacky logic check? No, just use model for one-off
+                 # Use chat session for continuity if needed, but greeting is one-off
+                 response = await model.generate_content_async(prompt)
+            else:
+                 response = await model.generate_content_async(prompt)
+
+            saludo = response.text.strip().replace("*", "")
+            
+            # Generar Audio
+            filename = f"temp/greeting_{uuid.uuid4().hex}.mp3"
+            communicate = edge_tts.Communicate(
+                saludo, 
+                config.TTS_VOICE, 
+                rate=config.TTS_RATE, 
+                pitch=config.TTS_PITCH
+            )
+            await communicate.save(filename)
+            
+            return filename, saludo
+            
+        except Exception as e:
+            logger.error(f"Error generando saludo: {e}")
+            return None, None
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         # Ignorar si es el propio bot o si no es una conexión a un canal nuevo
@@ -37,38 +80,15 @@ class AI(commands.Cog):
         if vc and vc.channel == after.channel:
             # El usuario acaba de entrar al canal donde está el bot
             
-            # Si ya está reproduciendo música, mejor no interrumpir (o podrías hacerlo si prefieres)
+            # Si ya está reproduciendo música, mejor no interrumpir
             if vc.is_playing():
-                # Opcional: Mandar saludo por texto si está ocupada cantando
                 return
 
             try:
-                memories = database.get_memory(member.id)
-                contexto = ""
-                if memories:
-                    contexto = f"Sabes esto de él: {', '.join(memories)}."
-                
-                prompt = (
-                    f"Eres Asuka. El usuario {member.name} acaba de entrar al canal de voz donde estás. "
-                    f"{contexto} "
-                    "Salúdalo con una frase corta (máx 10 palabras), tóxica o sarcástica, reconociendo quién es."
-                )
-                
-                response = await model.generate_content_async(prompt)
-                saludo = response.text.strip().replace("*", "")
-                
-                communicate = edge_tts.Communicate(
-                    saludo, 
-                    config.TTS_VOICE, 
-                    rate=config.TTS_RATE, 
-                    pitch=config.TTS_PITCH
-                )
-                
-                archivo = "temp/saludo_temp.mp3"
-                await communicate.save(archivo)
-                
-                source = discord.FFmpegPCMAudio(archivo)
-                vc.play(source)
+                path, text = await self.generate_greeting_audio(member)
+                if path:
+                    source = discord.FFmpegPCMAudio(path)
+                    vc.play(source)
                 
             except Exception as e:
                 logger.error(f"Error en saludo tóxico: {e}")
@@ -129,8 +149,8 @@ class AI(commands.Cog):
             except Exception as e:
                 await ctx.send(f"🤯 Error de visión: {e}")
 
-    @commands.command()
-    async def dj(self, ctx, *, mood):
+    @commands.command(aliases=['recomendar'])
+    async def vibe(self, ctx, *, mood):
         async with ctx.typing():
             await ctx.send(f"🤔 **Analizando vibe:** `{mood}`...")
             

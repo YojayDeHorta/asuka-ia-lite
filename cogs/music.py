@@ -539,37 +539,63 @@ class Music(commands.Cog):
         else:
             await ctx.send("❌ No estoy reproducinedo nada.")
 
-    @commands.command()
-    async def radio(self, ctx, *, query=None):
+    @commands.command(aliases=['radio', 'djasuka'])
+    async def dj(self, ctx, *, query=None):
         """
-        Controla la Radio Inteligente.
+        Controla la Radio Inteligente (DJ Asuka).
         Uso: 
-        - !radio -> Activa/Desactiva modo automático (por historial).
-        - !radio Daft Punk -> Activa radio SOLO de Daft Punk.
+        - !dj -> Activa/Desactiva modo automático.
+        - !dj Daft Punk -> Activa radio SOLO de Daft Punk.
         """
         guild_id = ctx.guild.id
         current_mode = self.radio_active.get(guild_id, None)
+        should_start = False
         
         if query:
             # Modo específico (siempre activa o cambia)
             self.radio_active[guild_id] = f"SPECIFIC:{query}"
-            await ctx.send(f"📻 **Radio Asuka: {query}** 📡\n*Solo pondré canciones de: {query}.*")
-            # Arrancar si hace falta
-            if not ctx.voice_client.is_playing() and (guild_id not in self.queues or not self.queues[guild_id]):
-                self.check_queue(ctx)
-            return
-
-        # Toggle simple (!radio sin argumentos)
-        if current_mode:
-            # Si estaba encendida (cualquier modo), se apaga
+            await ctx.send(f"🎧 **DJ Asuka: {query}** 🎚️\n*Solo pondré canciones de: {query}.*")
+            should_start = True
+        elif current_mode:
+            # Si estaba encendida -> Apagar
             self.radio_active[guild_id] = None
-            await ctx.send("rofl **Radio Asuka: APAGADA** 💤")
+            await ctx.send("🔇 **DJ Asuka: APAGADA** 💤")
         else:
-            # Se enciende en modo automático
+            # Encender automático
             self.radio_active[guild_id] = "AUTO"
-            await ctx.send("📻 **Radio Asuka: AUTOMÁTICA** 📡\n*Pondré música basada en tu historial reciente.*")
-            if not ctx.voice_client.is_playing() and (guild_id not in self.queues or not self.queues[guild_id]):
-                self.check_queue(ctx)
+            await ctx.send("🎧 **DJ Asuka: AUTOMÁTICA** 🎚️\n*Pondré música basada en tu historial reciente.*")
+            should_start = True
+
+        if should_start:
+            # 1. Auto-Connect & Greet
+            if not ctx.voice_client:
+                if ctx.author.voice:
+                    await ctx.author.voice.channel.connect()
+                    
+                    # Saludo de Bienvenida
+                    ai_cog = self.bot.get_cog('AI')
+                    if ai_cog:
+                        try:
+                            prompt_greet = (
+                                "Eres Asuka. El usuario {user} ha encendido tu Modo DJ. "
+                                "Salúdalo brevemente (máx 10 palabras) y di que pondrás wenos temas."
+                            )
+                            path, text = await ai_cog.generate_greeting_audio(ctx.author, prompt_override=prompt_greet)
+                            
+                            if path:
+                                source = discord.FFmpegPCMAudio(path)
+                                # Play Greeting -> Luego check_queue
+                                ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+                                if text: await ctx.send(f"🗣️ **Asuka:** {text}")
+                        except Exception as e:
+                            logger.error(f"Error greeting in radio: {e}")
+                else:
+                    await ctx.send(f"⚠️ Modo DJ activo, pero no estás en un canal de voz.")
+
+            # 2. Trigger Prefetch (Always call check_queue to ensure loop starts/prefetches)
+            # If playing greeting -> triggers prefetch background
+            # If idle (no greeting generated) -> triggers play immediately
+            self.check_queue(ctx)
 
     @commands.command()
     async def resetradio(self, ctx):
