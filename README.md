@@ -6,7 +6,7 @@
 
 -   🎵 **Music Player**: High-quality playback from YouTube with queue management (`!play`, `!skip`, `!queue`).
 -   💬 **AI Chat**: Intelligent and sarcastic conversation powered by Gemini Pro (`!chat`).
--   🎧 **AI DJ**: Sentiment-based music recommendations (`!dj`).
+-   🎧 **Smart DJ**: Continuous, context-aware music playback with intros (`!dj`).
 -   🗣️ **Voice Responses**: Text-to-Speech responses with an anime-style voice (`!habla`).
 -   📊 **Status Monitoring**: Server CPU/RAM usage display (`!status`).
 
@@ -94,12 +94,12 @@
 | `!np` | Shows the current song and progress bar. |
 | `!stop` | Stops playback and clears the queue (stays connected). |
 | `!leave` (or `!bye`, `!salir`) | Disconnects the bot from voice. |
-| `!radio [artist]` | Toggles Smart Radio Mode (Auto or Artist constrained). |
+| `!dj [artist]` | Toggles Smart DJ Mode (Auto or Artist constrained). |
 | `!announcer [mode]` | Sets Announcer Mode (FULL, TEXT, MUTE). |
 | `!resetradio` | Clears local music history (resets recommendations). |
 | `!chat [text]` | Chat with Asuka (AI). |
-| `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |
-| `!asuka [text]` | Asuka speaks the text in a voice channel. |
+| `!vibe [mood]` | Asks Asuka to recommend and play **one** song for a mood. |
+| `!asuka [text?]` | Asuka joins and greets (if no text) or answers (if text). |
 | `!tts [text]` | Speaks the provided text directly. |
 | `!ver` / `!mira [image]` | Asuka comments on the attached image. |
 | `!recuerda [text]` | Asuka remembers a fact about you (Memory). |
