@@ -6,6 +6,7 @@ from utils import database
 import time
 import config
 from utils.logger import setup_logger
+import uuid
 
 logger = setup_logger("MusicCog")
 
@@ -123,62 +124,71 @@ class Music(commands.Cog):
             # Recuperar item de la cola
             item = self.queues[ctx.guild.id].pop(0)
             
-            # Determinar tipo de item
-            # Formatos posibles:
-            # 1. (source, title) -> Legacy
-            # 2. (source, title, duration) -> Ready to play con duración
-            # 3. ("PENDING_SEARCH", query) -> Búsqueda pendiente
-            # 4. (None, title, url) -> URL de YT (Legacy playlist)
-            # 5. (None, title, url, duration) -> URL de YT con duración
-            
+            # --- Manejo de Items Especiales (Radio) ---
+            if item[0] == "INTRO":
+                # ("INTRO", file_path, intro_text)
+                file_path = item[1]
+                intro_text = item[2]
+                try:
+                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(file_path), volume=config.DEFAULT_VOLUME * 1.2)
+                    ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+                    asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
+                except Exception as e:
+                    logger.error(f"Error playing intro: {e}")
+                    self.check_queue(ctx)
+                return
+
+            elif item[0] == "TEXT_INTRO":
+                # ("TEXT_INTRO", intro_text)
+                intro_text = item[1]
+                asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
+                # Pasar inmediatamente al siguiente item (la canción)
+                self.check_queue(ctx)
+                return
+
+            # --- Manejo de Canciones ---
             source = None
             title = "Desconocido"
             duration = 0
             
-            # Caso: Source ya listo (Formatos 1 y 2)
+            # Formatos posibles:
+            # 1. (source, title) -> Legacy
+            # 2. (source, title, duration) -> Ready to play
+            # 3. ("PENDING_SEARCH", query) -> Búsqueda pendiente
+            # 4. (None, title, url) -> URL de YT (Legacy)
+            # 5. (None, title, url, duration) -> URL de YT con duración
+            
             if isinstance(item[0], discord.AudioSource):
                 source = item[0]
                 title = item[1]
-                if len(item) > 2:
-                    duration = item[2]
+                if len(item) > 2: duration = item[2]
                 
-            # Caso: URL directa de YT (Formatos 4 y 5)
             elif item[0] is None:
                 title = item[1]
                 url = item[2]
-                if len(item) > 3:
-                     duration = item[3]
-                     
+                if len(item) > 3: duration = item[3]
                 try:
                     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
                 except Exception as e:
-                    logger.error(f"Error procesando URL diferida {title}: {e}")
-                    return self.check_queue(ctx) # Saltar a la siguiente
+                    logger.error(f"Error URL diferida {title}: {e}")
+                    return self.check_queue(ctx)
             
-            # Caso: Búsqueda pendiente (Formato 3)
             elif item[0] == "PENDING_SEARCH":
                 query = item[1]
-                logger.debug(f"Resolviendo diferido: {query}")
                 try:
-                    # Búsqueda síncrona rápida (ya estamos en el loop del player)
-                    # Nota: Idealmente esto debería ser async, pero check_queue es callback síncrono de after=
-                    # Usaremos run_coroutine_threadsafe si fuera necesario, o bloquear brevemente (aceptable para 1 canción)
                     data = ytdl.extract_info(query, download=False)
-                    if 'entries' in data:
-                        data = data['entries'][0]
-                    
+                    if 'entries' in data: data = data['entries'][0]
                     url = data['url']
                     title = data['title']
                     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
                 except Exception as e:
-                    logger.error(f"Error buscando diferido {query}: {e}")
+                    logger.error(f"Error buscando {query}: {e}")
                     return self.check_queue(ctx)
 
             if source:
                 ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
-                print(f"Reproduciendo siguiente: {title}")
+                print(f"Reproduciendo: {title}")
                 
-                # Guardar info de tiempo
                 self.current_song_info[ctx.guild.id] = {
                     'start_time': time.time(),
                     'duration': duration,
@@ -192,15 +202,28 @@ class Music(commands.Cog):
                     await ctx.send(f"▶️ **Ahora suena:** {title} **{dur_str}**", view=view)
 
                 asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
+                
+                # --- PREFETCH TRIGGER ---
+                # Si Radio ON y Cola vacía (este era el último), generar siguiente YA
+                if self.radio_active.get(ctx.guild.id, False):
+                     if not self.queues[ctx.guild.id] and ctx.guild.id not in self.radio_processing:
+                         logger.info("📻 Prefetching next radio song...")
+                         self.radio_processing.add(ctx.guild.id)
+                         asyncio.run_coroutine_threadsafe(self._queue_radio_song(ctx), self.bot.loop)
+
             else:
-                self.check_queue(ctx) # Intentar siguiente si falló
+                self.check_queue(ctx)
         else:
-            # Cola terminada
+            # Cola vacía (Idle)
             if self.radio_active.get(ctx.guild.id, False):
                 if ctx.guild.id not in self.radio_processing:
-                    logger.info("📻 Cola vacía. Modo Radio activado. Buscando canción...")
+                    logger.info("📻 Cola vacía. Triggering Radio...")
                     self.radio_processing.add(ctx.guild.id)
-                    asyncio.run_coroutine_threadsafe(self._play_radio_song(ctx), self.bot.loop)
+                    # Forzar generación y luego check_queue de nuevo
+                    async def start_radio():
+                        await self._queue_radio_song(ctx)
+                        self.check_queue(ctx)
+                    asyncio.run_coroutine_threadsafe(start_radio(), self.bot.loop)
             else:
                 print("Cola terminada.")
 
@@ -506,8 +529,8 @@ class Music(commands.Cog):
         else:
             await ctx.send("❌ Opción inválida. Usa: `FULL`, `TEXT`, o `MUTE`.")
 
-    async def _play_radio_song(self, ctx):
-        """Genera y reproduce una canción para el modo radio."""
+    async def _queue_radio_song(self, ctx):
+        """Genera contenido de radio y lo AÑADE A LA COLA (Prefetch)."""
         try:
             # Imports locales para evitar ciclos
             import google.generativeai as genai
@@ -515,7 +538,6 @@ class Music(commands.Cog):
             import json
             import re
             
-            # --- Generación de Contenido ---
             # --- Generación de Contenido ---
             # Recuperar historial siempre para evitar repeticiones
             recent_songs = database.get_recent_songs(limit=15)
@@ -528,7 +550,6 @@ class Music(commands.Cog):
                         unique_recent.append(s)
                         vis.add(s)
                 context_history = ". ".join(unique_recent[:10])
-                logger.info(f"🔍 Radio Context ({len(unique_recent)}): {context_history}")
 
             # Verificar modo
             radio_mode = self.radio_active.get(ctx.guild.id, "AUTO")
@@ -564,24 +585,19 @@ class Music(commands.Cog):
             text_full = resp.text.strip()
             
             # --- Parseo Robusto ---
-            song_name = "Daft Punk - One More Time" # Fallback por defecto
+            song_name = "Daft Punk - One More Time" # Fallback
             intro = "Kora, escucha esto."
             
-            # Buscar JSON con Regex
             json_match = re.search(r"\{.*\}", text_full, re.DOTALL)
-            
             if json_match:
                 json_str = json_match.group(0)
                 try:
                     data = json.loads(json_str)
                     song_name = data.get("song", song_name)
                     intro = data.get("intro", intro)
-                except Exception as e:
-                    logger.error(f"Error JSON parse: {e}")
+                except: pass
             else:
-                 # Fallback manual si no hay JSON (intentar limpiar markdown)
                  clean_text = text_full.replace("```json", "").replace("```", "").strip()
-                 # Si parece un JSON simple intentar parsear
                  if clean_text.startswith("{"):
                      try:
                          data = json.loads(clean_text)
@@ -589,79 +605,54 @@ class Music(commands.Cog):
                          intro = data.get("intro", intro)
                      except: pass
             
-            logger.info(f"📻 Radio eligió: {song_name} | Intro: {intro}")
-            
-            # --- Lógica según Announcer Mode ---
-            current_loop = self.bot.loop
+            logger.info(f"📻 Radio Prepared: {song_name}")
+
+            # --- Preparar Items para la Cola ---
+            queue_items = []
             current_announcer_mode = self.announcer_mode.get(ctx.guild.id, config.ANNOUNCER_MODE)
             
-            if current_announcer_mode == "MUTE":
-                # Modo Silencioso: Solo tocar música
-                async def launch_mute():
-                    if ctx.guild.id in self.radio_processing:
-                        self.radio_processing.remove(ctx.guild.id)
-                    await self.play(ctx, query=song_name)
-                    
-                asyncio.run_coroutine_threadsafe(launch_mute(), current_loop)
-                return
-
+            # 1. Intro Item
+            if current_announcer_mode == "FULL":
+                # Generar TTS
+                filename = f"temp/radio_intro_{uuid.uuid4().hex}.mp3"
+                communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
+                await communicate.save(filename)
+                queue_items.append(("INTRO", filename, intro))
+                
             elif current_announcer_mode == "TEXT":
-                 # Modo Texto: Mandar mensaje, luego tocar música
-                 async def launch_text():
-                     if ctx.guild.id in self.radio_processing:
-                        self.radio_processing.remove(ctx.guild.id)
-                     await ctx.send(f"🎙️ **Asuka:** *{intro}*")
-                     await self.play(ctx, query=song_name)
-                     
-                 asyncio.run_coroutine_threadsafe(launch_text(), current_loop)
-                 return
-
-            # --- Modo FULL (TTS) ---
-            temp_file = "temp/radio_intro.mp3"
-            communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
-            await communicate.save(temp_file)
+                queue_items.append(("TEXT_INTRO", intro))
             
-            # --- Definir CALLBACK para después del TTS ---
-            # Esto se ejecutará cuando la intro termine de hablar
-            def play_song_after_intro(error):
-                if error:
-                    logger.error(f"Error en intro radio: {error}")
+            # 2. Song Item (Buscar URL)
+            loop = asyncio.get_event_loop()
+            try:
+                data = await loop.run_in_executor(None, lambda: ytdl.extract_info(song_name, download=False))
+                if 'entries' in data: data = data['entries'][0]
                 
-                async def launch_song():
-                    try:
-                        # Limpiar flag de procesando
-                        if ctx.guild.id in self.radio_processing:
-                            self.radio_processing.remove(ctx.guild.id)
-                        # Tocar la canción
-                        await self.play(ctx, query=song_name)
-                    except Exception as e:
-                         logger.error(f"Error lanzando canción radio: {e}")
+                url = data['url']
+                title = data['title']
+                duration = data.get('duration', 0)
                 
-                # Ejecutar play en el loop principal
-                asyncio.run_coroutine_threadsafe(launch_song(), current_loop)
-
-            # --- Reproducir Intro ---
-            if ctx.voice_client:
-                # No llamamos a stop() aquí porque venimos de check_queue, asumimos que está libre
-                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(temp_file), volume=config.DEFAULT_VOLUME * 1.2) # Un poco mas alto
-                ctx.voice_client.play(source, after=play_song_after_intro)
-                await ctx.send(f"🎙️ **Asuka:** *{intro}*")
+                # Append formatted song item
+                queue_items.append((None, title, url, duration))
+                
+            except Exception as e:
+                logger.error(f"Error fetching radio song {song_name}: {e}")
+                # Fallback? Maybe try another? For now just fail gracefully
+            
+            # --- Añadir a la Cola ---
+            if ctx.guild.id not in self.queues:
+                self.queues[ctx.guild.id] = []
+            
+            for item in queue_items:
+                self.queues[ctx.guild.id].append(item)
                 
         except Exception as e:
-            logger.error(f"Error general radio: {e}")
-            # Limpiar flag en caso de error fatal
+            logger.error(f"Error general radio queueing: {e}")
+                
+        finally:
+            # Limpiar flag
             if ctx.guild.id in self.radio_processing:
                 self.radio_processing.remove(ctx.guild.id)
-                song_name = resp.text.strip()
-                
-                logger.info(f"� Radio eligió: {song_name}")
-                async def play_next():
-                    await self.play(ctx, query=song_name)
-                
-                asyncio.run_coroutine_threadsafe(play_next(), self.bot.loop)
-                
-        except Exception as e:
-            logger.error(f"Error generando radio: {e}")
 
     @commands.command(aliases=['salir', 'disconnect', 'bye'])
     async def leave(self, ctx):
