@@ -42,3 +42,4 @@ TTS_PITCH = SETTINGS['tts'].get('pitch', '+0Hz')
 
 # Music Settings
 DEFAULT_VOLUME = SETTINGS.get('music', {}).get('default_volume', 50) / 100
+ANNOUNCER_MODE = SETTINGS.get('music', {}).get('announcer_mode', "FULL") # FULL, TEXT, MUTE

@@ -95,6 +95,7 @@
 | `!stop` | Stops playback and clears the queue (stays connected). |
 | `!leave` (or `!bye`, `!salir`) | Disconnects the bot from voice. |
 | `!radio [artist]` | Toggles Smart Radio Mode (Auto or Artist constrained). |
+| `!announcer [mode]` | Sets Announcer Mode (FULL, TEXT, MUTE). |
 | `!resetradio` | Clears local music history (resets recommendations). |
 | `!chat [text]` | Chat with Asuka (AI). |
 | `!dj [mood]` | Asks Asuka to recommend and play a song for a mood. |

@@ -114,8 +114,9 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues = {}
         self.current_song_info = {} # {guild_id: {'start_time': 0, 'duration': 0, 'title': 'name'}}
-        self.radio_active = {} # {guild_id: bool}
+        self.radio_active = {} # {guild_id: bool or string}
         self.radio_processing = set() # {guild_id} to prevent race conditions
+        self.announcer_mode = {} # {guild_id: "FULL"|"TEXT"|"MUTE"}
 
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
@@ -485,6 +486,26 @@ class Music(commands.Cog):
             logger.error(f"Error resetradio: {e}")
             await ctx.send("❌ Error borrando historial.")
 
+    @commands.command(aliases=['modo', 'comentarios'])
+    async def announcer(self, ctx, mode: str = None):
+        """
+        Cambia el modo de la locutora:
+        - FULL: Voz y Texto (Defecto)
+        - TEXT: Solo Texto (Sin voz)
+        - MUTE: Solo Música (Sin interrupciones)
+        """
+        if not mode:
+            current = self.announcer_mode.get(ctx.guild.id, config.ANNOUNCER_MODE)
+            await ctx.send(f"🎙️ **Modo Actual:** `{current}`\nOpciones: `FULL`, `TEXT`, `MUTE`.")
+            return
+
+        mode = mode.upper()
+        if mode in ["FULL", "TEXT", "MUTE"]:
+            self.announcer_mode[ctx.guild.id] = mode
+            await ctx.send(f"🎙️ **Modo Locutora cambiado a:** `{mode}`")
+        else:
+            await ctx.send("❌ Opción inválida. Usa: `FULL`, `TEXT`, o `MUTE`.")
+
     async def _play_radio_song(self, ctx):
         """Genera y reproduce una canción para el modo radio."""
         try:
@@ -570,7 +591,32 @@ class Music(commands.Cog):
             
             logger.info(f"📻 Radio eligió: {song_name} | Intro: {intro}")
             
-            # --- TTS ---
+            # --- Lógica según Announcer Mode ---
+            current_loop = self.bot.loop
+            current_announcer_mode = self.announcer_mode.get(ctx.guild.id, config.ANNOUNCER_MODE)
+            
+            if current_announcer_mode == "MUTE":
+                # Modo Silencioso: Solo tocar música
+                async def launch_mute():
+                    if ctx.guild.id in self.radio_processing:
+                        self.radio_processing.remove(ctx.guild.id)
+                    await self.play(ctx, query=song_name)
+                    
+                asyncio.run_coroutine_threadsafe(launch_mute(), current_loop)
+                return
+
+            elif current_announcer_mode == "TEXT":
+                 # Modo Texto: Mandar mensaje, luego tocar música
+                 async def launch_text():
+                     if ctx.guild.id in self.radio_processing:
+                        self.radio_processing.remove(ctx.guild.id)
+                     await ctx.send(f"🎙️ **Asuka:** *{intro}*")
+                     await self.play(ctx, query=song_name)
+                     
+                 asyncio.run_coroutine_threadsafe(launch_text(), current_loop)
+                 return
+
+            # --- Modo FULL (TTS) ---
             temp_file = "temp/radio_intro.mp3"
             communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
             await communicate.save(temp_file)
@@ -592,13 +638,11 @@ class Music(commands.Cog):
                          logger.error(f"Error lanzando canción radio: {e}")
                 
                 # Ejecutar play en el loop principal
-                asyncio.run_coroutine_threadsafe(launch_song(), self.bot.loop)
+                asyncio.run_coroutine_threadsafe(launch_song(), current_loop)
 
             # --- Reproducir Intro ---
             if ctx.voice_client:
                 # No llamamos a stop() aquí porque venimos de check_queue, asumimos que está libre
-                # Si llamamos stop() podríamos disparar triggers recursivos
-                
                 source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(temp_file), volume=config.DEFAULT_VOLUME * 1.2) # Un poco mas alto
                 ctx.voice_client.play(source, after=play_song_after_intro)
                 await ctx.send(f"🎙️ **Asuka:** *{intro}*")
