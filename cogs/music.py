@@ -124,6 +124,13 @@ class Music(commands.Cog):
             # Recuperar item de la cola
             item = self.queues[ctx.guild.id].pop(0)
             
+            # --- Unwrap Radio Candidate ---
+            # Si es una canción precargada de la radio, la desempaquetamos
+            is_radio_prefetch = False
+            if isinstance(item, tuple) and len(item) > 0 and item[0] == "RADIO_CANDIDATE":
+                item = item[1]
+                is_radio_prefetch = True
+            
             # --- Manejo de Items Especiales (Radio) ---
             if item[0] == "INTRO":
                 # ("INTRO", file_path, intro_text)
@@ -237,6 +244,19 @@ class Music(commands.Cog):
             await channel.connect()
 
         msg = await ctx.send(f"🔍 **Buscando:** `{query}`...")
+
+        # --- Prioridad de Usuario: Limpiar Radio Prefetch ---
+        # Si hay canciones precargadas por la radio, las borramos para poner la del usuario primero
+        if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
+            original_q = self.queues[ctx.guild.id]
+            # Filtramos todo lo que sea RADIO_CANDIDATE
+            clean_q = [x for x in original_q if not (isinstance(x, tuple) and len(x) > 0 and x[0] == "RADIO_CANDIDATE")]
+            
+            if len(clean_q) < len(original_q):
+                self.queues[ctx.guild.id] = clean_q
+                logger.info(f"Purged radio prefetch for user priority in {ctx.guild.id}")
+                # Opcional: Avisar al usuario
+                # await ctx.send("🧹 **Interrumpiendo a la radio para poner tu canción...**")
 
         if 'open.spotify.com' in query:
             if not config.SPOTIPY_CLIENT_ID:
@@ -644,7 +664,8 @@ class Music(commands.Cog):
                 self.queues[ctx.guild.id] = []
             
             for item in queue_items:
-                self.queues[ctx.guild.id].append(item)
+                # Envolvemos en RADIO_CANDIDATE para identificarlo y borrarlo si el usuario usa !play
+                self.queues[ctx.guild.id].append(("RADIO_CANDIDATE", item))
                 
         except Exception as e:
             logger.error(f"Error general radio queueing: {e}")
