@@ -37,11 +37,60 @@ ytdl_format_options = {
 
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
+# Botones Interactivos
+class MusicControlView(discord.ui.View):
+    def __init__(self, ctx, music_cog):
+        super().__init__(timeout=None) # Timeout=None para que los botones no expiren rápido
+        self.ctx = ctx
+        self.music_cog = music_cog
+
+    @discord.ui.button(emoji="⏯️", style=discord.ButtonStyle.secondary)
+    async def pause_resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
+             return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
+             
+        vc = self.ctx.voice_client
+        if vc:
+            if vc.is_paused():
+                vc.resume()
+                await interaction.response.send_message("▶️ Reanudado", ephemeral=True)
+            elif vc.is_playing():
+                vc.pause()
+                await interaction.response.send_message("⏸️ Pausado", ephemeral=True)
+        else:
+             await interaction.response.send_message("❌ No estoy conectada.", ephemeral=True)
+
+    @discord.ui.button(emoji="⏭️", style=discord.ButtonStyle.secondary)
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
+             return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
+             
+        vc = self.ctx.voice_client
+        if vc and vc.is_playing():
+            vc.stop()
+            await interaction.response.send_message("⏭️ Saltando...", ephemeral=True)
+        else:
+             await interaction.response.send_message("❌ Nada sonando.", ephemeral=True)
+
+    @discord.ui.button(emoji="⏹️", style=discord.ButtonStyle.secondary)
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
+             return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
+             
+        # Reutilizar el comando stop
+        await self.music_cog.stop(self.ctx)
+        # Deshabilitar botones después de parar
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+        await interaction.response.send_message("🛑 Detenido por botón.", ephemeral=True)
+
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.queues = {}
         self.current_song_info = {} # {guild_id: {'start_time': 0, 'duration': 0, 'title': 'name'}}
+        self.radio_active = {} # {guild_id: bool}
 
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
@@ -110,11 +159,20 @@ class Music(commands.Cog):
                     'title': title
                 }
                 
-                asyncio.run_coroutine_threadsafe(ctx.send(f"▶️ **Ahora suena:** {title}"), self.bot.loop)
+                async def send_np():
+                    view = MusicControlView(ctx, self)
+                    await ctx.send(f"▶️ **Ahora suena:** {title}", view=view)
+
+                asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
             else:
                 self.check_queue(ctx) # Intentar siguiente si falló
         else:
-            print("Cola terminada.")
+            # Cola terminada
+            if self.radio_active.get(ctx.guild.id, False):
+                logger.info("📻 Cola vacía. Modo Radio activado. Buscando canción...")
+                asyncio.run_coroutine_threadsafe(self._play_radio_song(ctx), self.bot.loop)
+            else:
+                print("Cola terminada.")
 
     @commands.command()
     async def play(self, ctx, *, query):
@@ -220,16 +278,17 @@ class Music(commands.Cog):
                 'title': title
             }
             
+            view = MusicControlView(ctx, self)
             embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**", color=discord.Color.green())
             embed.set_footer(text="Creado por Noel ❤️")
             await msg.delete()
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, view=view)
 
-        # Guardar en memoria automáticamente
+        # Guardar en historial musical
         try:
-            database.add_memory(ctx.author.id, f"Le gusta: {title}")
+            database.log_song(ctx.author.id, title)
         except Exception as e:
-            logger.error(f"Error guardando memoria musical: {e}")
+            logger.error(f"Error guardando historial musical: {e}")
 
     @commands.command()
     async def skip(self, ctx):
@@ -344,6 +403,69 @@ class Music(commands.Cog):
         else:
             await ctx.send("❌ No estoy reproducinedo nada.")
 
+    @commands.command()
+    async def radio(self, ctx):
+        """Activa/Desactiva el modo Radio 24/7 (Smart DJ)."""
+        guild_id = ctx.guild.id
+        status = self.radio_active.get(guild_id, False)
+        
+        self.radio_active[guild_id] = not status
+        new_status = self.radio_active[guild_id]
+        
+        if new_status:
+            await ctx.send("📻 **Radio Asuka: ACTIVADA** 📡\n*Si la cola se vacía, pondré música basada en tus gustos.*")
+            # Si no suena nada, arrancar
+            if not ctx.voice_client.is_playing() and (guild_id not in self.queues or not self.queues[guild_id]):
+                self.check_queue(ctx) 
+        else:
+            await ctx.send("rofl **Radio Asuka: APAGADA** 💤")
+
+    async def _play_radio_song(self, ctx):
+        """Genera y reproduce una canción para el modo radio."""
+        try:
+            # Pedir recomendación a Gemini (usando el cog de AI si es posible, o directamente el modelo si se prefiere)
+            # Para simplificar y no depender circularmente del AI cog instance facilmente, 
+            # podemos importar el modelo y config aquí o usar database para leer gustos.
+            
+            # Recuperar historial reciente
+            recent_songs = database.get_recent_songs(limit=15) # Leemos 15 para tener contexto
+            
+            context_str = ""
+            if recent_songs:
+                # Filtrar posibles duplicados consecutivos visualmente
+                unique_recent = []
+                vis = set()
+                for s in recent_songs:
+                    if s not in vis:
+                        unique_recent.append(s)
+                        vis.add(s)
+                
+                context_str = "Canciones recientes que sonaron: " + ", ".join(unique_recent[:10]) + "."
+            
+            prompt = (
+                f"Eres un DJ experto. {context_str} "
+                "Basándote en este estilo, recomienda una canción similar para mantener el 'vibe'. "
+                "Responde SOLO el nombre (Artista - Canción)."
+            )
+            
+            # Si podemos acceder al modelo desde aquí...
+            # Vamos a importar genai aquí también, es más limpio.
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_KEY)
+            model = genai.GenerativeModel(config.AI_MODEL) 
+            
+            resp = await model.generate_content_async(prompt)
+                song_name = resp.text.strip()
+                
+                logger.info(f"� Radio eligió: {song_name}")
+                async def play_next():
+                    await self.play(ctx, query=song_name)
+                
+                asyncio.run_coroutine_threadsafe(play_next(), self.bot.loop)
+                
+        except Exception as e:
+            logger.error(f"Error generando radio: {e}")
+
     @commands.command(aliases=['salir', 'disconnect', 'bye'])
     async def leave(self, ctx):
         """Desconecta al bot del canal de voz."""
@@ -355,6 +477,7 @@ class Music(commands.Cog):
             await ctx.send("👋 **Me voy!**")
         else:
             await ctx.send("❌ No estoy conectada.")
+
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

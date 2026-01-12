@@ -13,8 +13,35 @@ def ensure_db():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS memory
                  (user_id INTEGER, fact TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS music_history
+                 (user_id INTEGER, title TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
+
+def log_song(user_id, title):
+    try:
+        ensure_db()
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("INSERT INTO music_history (user_id, title) VALUES (?, ?)", (user_id, title))
+        conn.commit()
+        conn.close()
+        # logger.info(f"Canción registrada: {title}") # Spam innecesario en log
+    except Exception as e:
+        logger.error(f"Error logueando canción: {e}")
+
+def get_recent_songs(limit=10):
+    try:
+        ensure_db()
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("SELECT title FROM music_history ORDER BY timestamp DESC LIMIT ?", (limit,))
+        rows = c.fetchall()
+        conn.close()
+        return [row[0] for row in rows]
+    except Exception as e:
+        logger.error(f"Error leyendo historial musical: {e}")
+        return []
 
 def add_memory(user_id, fact):
     try:
