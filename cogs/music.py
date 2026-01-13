@@ -112,6 +112,7 @@ class Music(commands.Cog):
         self.current_song_info = {} # {guild_id: {'start_time': 0, 'duration': 0, 'title': 'name'}}
         self.radio_active = {} # {guild_id: bool or string}
         self.radio_processing = set() # {guild_id} to prevent race conditions
+        self.radio_session_start = set() # Set of guild_ids that just started radio (for First Song Intro)
         self.announcer_mode = {} # {guild_id: "FULL"|"TEXT"|"MUTE"}
         self.now_playing_messages = {} # {guild_id: discord.Message}
 
@@ -283,6 +284,7 @@ class Music(commands.Cog):
                     asyncio.run_coroutine_threadsafe(start_radio(), self.bot.loop)
             else:
                 logger.info("Cola terminada.")
+
 
     @commands.command()
     async def play(self, ctx, *, query):
@@ -561,6 +563,7 @@ class Music(commands.Cog):
         if query:
             # Modo específico (siempre activa o cambia)
             self.radio_active[guild_id] = f"SPECIFIC:{query}"
+            self.radio_session_start.add(guild_id) # Marcar inicio de sesión
             await ctx.send(f"🎧 **DJ Asuka: {query}** 🎚️\n*Solo pondré canciones de: {query}.*")
             should_start = True
         elif current_mode:
@@ -570,6 +573,7 @@ class Music(commands.Cog):
         else:
             # Encender automático
             self.radio_active[guild_id] = "AUTO"
+            self.radio_session_start.add(guild_id) # Marcar inicio de sesión
             await ctx.send("🎧 **DJ Asuka: AUTOMÁTICA** 🎚️\n*Pondré música basada en tu historial reciente.*")
             should_start = True
 
@@ -936,9 +940,22 @@ class Music(commands.Cog):
                 prompt_instruction = (
                     f"Eres un DJ experto. Canciones recientes: {context_history}. "
                     "Tu tarea es elegir la siguiente canción BASÁNDOTE EXCLUSIVAMENTE EN EL GÉNERO Y VIBE del historial reciente. "
-                    "IMPORTANTE: NO REPITAS ninguna de las canciones recientes. Debes elegir algo NUEVO. "
-                    "Si escuchan Pop/Rock, pon Pop/Rock. Si escuchan Anime, pon Anime. NO fuerces música de anime si no pega con el historial. "
+                    "MANTÉN LA COHERENCIA. Si el historial es Electrónica (ej. Daft Punk), sigue con Electrónica/French House. "
+                    "Si es Rock, sigue con Rock. "
+                    "IMPORTANTE: NO REPITAS ninguna de las canciones recientes del historial. Debes elegir algo NUEVO. "
+                    "PROHIBIDO cambiar drásticamente de género (ej. saltar de Metal a Reggaeton) a menos que el historial muestre esa mezcla. "
+                    "Evita éxitos latinos genéricos (ej. Carlos Vives, Shakira) si el contexto es totalmente diferente (ej. Electrónica, Anime, Metal)."
                 )
+            
+            # --- Detectar Inicio de Sesión ---
+            is_start = False
+            if ctx.guild.id in self.radio_session_start:
+                prompt_instruction += (
+                    " Esta es la PRIMERA canción de la sesión de DJ. "
+                    "En la intro, menciona que es el primer tema y di algo como 'Para empezar, no se duerman' o 'Arrancamos con esta'. ¡Genera HYPE!"
+                )
+                self.radio_session_start.remove(ctx.guild.id)
+                is_start = True
 
             prompt = (
                 f"{prompt_instruction} "
