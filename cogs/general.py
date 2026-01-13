@@ -1,6 +1,8 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import psutil
+import os
+import time
 from utils.logger import setup_logger
 
 logger = setup_logger("GeneralCog")
@@ -8,10 +10,47 @@ logger = setup_logger("GeneralCog")
 class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+    
+    async def cog_load(self):
+        self.cleanup_temp_files.start()
+        
+    async def cog_unload(self):
+        self.cleanup_temp_files.cancel()
+
+    @tasks.loop(minutes=30)
+    async def cleanup_temp_files(self):
+        try:
+            folder = "temp"
+            if not os.path.exists(folder):
+                return
+            
+            logger.info("🧹 Ejecutando limpieza de archivos temporales...")
+            now = time.time()
+            deleted_count = 0
+            
+            for filename in os.listdir(folder):
+                filepath = os.path.join(folder, filename)
+                # Solo borrar mp3 viejos (> 15 mins) para evitar borrar lo que suena
+                if filename.endswith(".mp3"):
+                    file_age = now - os.path.getmtime(filepath)
+                    if file_age > 900: # 15 minutos
+                        try:
+                            os.remove(filepath)
+                            deleted_count += 1
+                        except Exception as e:
+                            logger.error(f"Error borrando {filename}: {e}")
+            
+            if deleted_count > 0:
+                logger.info(f"🧹 Limpieza completada: {deleted_count} archivos borrados.")
+        except Exception as e:
+            logger.error(f"Error en loop de limpieza: {e}")
 
     @commands.Cog.listener()
     async def on_ready(self):
         print(f'✨ Asuka lista y conectada como {self.bot.user}!')
+        # Ensure loop runs if cog_load fails somehow (redundancy)
+        if not self.cleanup_temp_files.is_running():
+             self.cleanup_temp_files.start()
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         # Si el bot está conectado y se queda solo
