@@ -94,6 +94,8 @@
 | `!np` | Shows the current song and progress bar. |
 | `!stop` | Stops playback and clears the queue (stays connected). |
 | `!leave` (or `!bye`, `!salir`) | Disconnects the bot from voice. |
+| `!playlist [cmd]` | Playlist Manager (save, load, list, delete). |
+| `!stats` | Shows user music statistics (Top Songs, Count). |
 | `!dj [artist]` | Toggles Smart DJ Mode (Auto or Artist constrained). |
 | `!announcer [mode]` | Sets Announcer Mode (FULL, TEXT, MUTE). |
 | `!resetradio` | Clears local music history (resets recommendations). |

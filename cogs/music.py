@@ -7,6 +7,7 @@ import time
 import config
 from utils.logger import setup_logger
 import uuid
+import json
 
 logger = setup_logger("MusicCog")
 
@@ -597,15 +598,139 @@ class Music(commands.Cog):
             # If idle (no greeting generated) -> triggers play immediately
             self.check_queue(ctx)
 
-    @commands.command()
-    async def resetradio(self, ctx):
-        """Borra el historial musical para reiniciar la 'memoria' de la radio."""
+    @commands.group(invoke_without_command=True)
+    async def playlist(self, ctx):
+        """
+        Sistema de Playlists Personales.
+        Uso:
+        - !playlist save <nombre>
+        - !playlist load <nombre>
+        - !playlist list
+        - !playlist delete <nombre>
+        """
+        await ctx.send_help(ctx.command)
+
+    @playlist.command(name="save")
+    async def playlist_save(self, ctx, name: str):
+        """Guarda la cola ACTUAL como una playlist personal."""
+        if ctx.guild.id not in self.queues or not self.queues[ctx.guild.id]:
+            # Check if playing
+            if not ctx.voice_client.is_playing():
+                return await ctx.send("❌ La cola está vacía. ¡Pon música primero!")
+        
+        # Capturamos la cola
+        queue = self.queues.get(ctx.guild.id, [])
+        songs_to_save = []
+        
+        # Si algo está sonando, ¿deberíamos guardarlo? 
+        # Normalmente se guarda lo que está en cola + lo que suena.
+        # Por simplicidad, guardemos lo que está en QUUEUE.
+        # Ojo: Filtrar canciones de Radio
+        
+        for item in queue:
+            # item format: (source, title, duration, req) OR (None, title, url, duration, req) OR ("PENDING", ...) OR ("RADIO", ...)
+            
+            # Skip Radio
+            if isinstance(item, tuple) and len(item) > 0 and item[0] == "RADIO_CANDIDATE":
+                continue
+            
+            # Extract Data
+            song_data = {}
+            if isinstance(item, tuple):
+                 # Handle Formats
+                 if item[0] == "PENDING_SEARCH":
+                     # PENDING: (PENDING, query, req)
+                     song_data = {"type": "query", "query": item[1]}
+                 elif item[0] is None:
+                     # URL: (None, title, url, duration, req)
+                     # Save Title & URL
+                     song_data = {"type": "url", "title": item[1], "url": item[2], "duration": item[3]}
+                 elif isinstance(item[0], discord.AudioSource):
+                     # Source: (src, title, duration, req)
+                     # We cannot save Source object. We rely on Title? Ideally we need URL.
+                     # For simplicity, if we don't have URL, we save Title as Query.
+                     song_data = {"type": "query", "query": item[1]}
+            
+            if song_data:
+                songs_to_save.append(song_data)
+                
+        if not songs_to_save:
+             return await ctx.send("❌ No hay canciones 'humanas' en la cola para guardar (La radio no cuenta).")
+             
         try:
-            database.clear_music_history()
-            await ctx.send("🧹 **Historial musical borrado.**\nAhora la radio empezará de cero con los géneros que pongas.")
+            json_data = json.dumps(songs_to_save)
+            if database.save_playlist(ctx.author.id, name, json_data):
+                await ctx.send(f"💾 **Playlist '{name}' guardada.** ({len(songs_to_save)} canciones)")
+            else:
+                await ctx.send("❌ Error guardando en base de datos.")
         except Exception as e:
-            logger.error(f"Error resetradio: {e}")
-            await ctx.send("❌ Error borrando historial.")
+            logger.error(f"Error playlist save: {e}")
+            await ctx.send("❌ Error procesando la playlist.")
+
+    @playlist.command(name="load")
+    async def playlist_load(self, ctx, name: str):
+        """Carga una playlist guardada."""
+        if not ctx.message.author.voice:
+            return await ctx.send("❌ ¡Entra a un canal de voz primero!")
+            
+        if ctx.voice_client is None:
+            await ctx.message.author.voice.channel.connect()
+
+        json_str = database.get_playlist(ctx.author.id, name)
+        if not json_str:
+            return await ctx.send(f"❌ No encontré la playlist '{name}'.")
+            
+        try:
+            songs = json.loads(json_str)
+            count = 0
+            
+            if ctx.guild.id not in self.queues:
+                self.queues[ctx.guild.id] = []
+                
+            for s in songs:
+                # Add back to queue
+                if s['type'] == 'url':
+                    # (None, title, url, duration, requester)
+                    self.queues[ctx.guild.id].append((None, s['title'], s['url'], s.get('duration', 0), ctx.author.display_name))
+                elif s['type'] == 'query':
+                    # ("PENDING_SEARCH", query, requester)
+                    self.queues[ctx.guild.id].append(("PENDING_SEARCH", s['query'], ctx.author.display_name))
+                count += 1
+            
+            await ctx.send(f"📂 **Playlist '{name}' cargada.** ({count} canciones añadidas).")
+            
+            # Start if idle
+            if not ctx.voice_client.is_playing():
+                self.check_queue(ctx)
+            else:
+                # Trigger prefetch manually if playing
+                await self._prefetch_manual_queue(ctx)
+                # Update UI
+                await self._update_np_embed(ctx)
+                
+        except Exception as e:
+            logger.error(f"Error playlist load: {e}")
+            await ctx.send("❌ Error cargando la playlist.")
+
+    @playlist.command(name="list")
+    async def playlist_list(self, ctx):
+        """Muestra tus playlists."""
+        lists = database.get_user_playlists(ctx.author.id)
+        if not lists:
+            return await ctx.send("📭 No tienes playlists guardadas.")
+            
+        desc = "\n".join([f"- **{row[0]}** ({row[1][:10]})" for row in lists])
+        embed = discord.Embed(title=f"💾 Playlists de {ctx.author.display_name}", description=desc, color=discord.Color.blue())
+        await ctx.send(embed=embed)
+
+    @playlist.command(name="delete")
+    async def playlist_delete(self, ctx, name: str):
+        """Borra una playlist."""
+        if database.delete_playlist(ctx.author.id, name):
+            await ctx.send(f"🗑️ Playlist '{name}' borrada.")
+        else:
+            await ctx.send(f"❌ No encontré '{name}' o error al borrar.")
+
 
     @commands.command(aliases=['modo', 'comentarios'])
     async def announcer(self, ctx, mode: str = None):
