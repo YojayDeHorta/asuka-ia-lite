@@ -236,7 +236,7 @@ class Music(commands.Cog):
                 if is_radio_prefetch:
                     log_user_id = self.bot.user.id
                 
-                database.log_song(log_user_id, title)
+                database.log_song(ctx.guild.id, log_user_id, title)
             except Exception as e:
                 logger.error(f"Error logging song history in check_queue: {e}")
 
@@ -438,7 +438,7 @@ class Music(commands.Cog):
 
         # Guardar en historial musical
         try:
-            database.log_song(ctx.author.id, title)
+            database.log_song(ctx.guild.id, ctx.author.id, title)
         except Exception as e:
             logger.error(f"Error guardando historial musical: {e}")
 
@@ -924,7 +924,7 @@ class Music(commands.Cog):
             
             # --- Generación de Contenido ---
             # Recuperar historial siempre para evitar repeticiones
-            recent_songs = database.get_recent_songs(limit=20)
+            recent_songs = database.get_recent_songs(ctx.guild.id, limit=20)
             context_history = ""
             if recent_songs:
                 unique_recent = []

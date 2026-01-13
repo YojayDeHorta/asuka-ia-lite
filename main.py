@@ -3,6 +3,7 @@ from discord.ext import commands
 import config
 import asyncio
 from utils.logger import setup_logger
+from utils import database
 
 # Configurar logger
 logger = setup_logger("Main")
@@ -19,6 +20,9 @@ async def on_ready():
     logger.info("---------")
 
 async def main():
+    # Inicializar Base de Datos (y migraciones)
+    database.ensure_db()
+    
     async with bot:
     # Cargar cogs explícitamente (más seguro que listdir para estructura fija)
         extensions = ['cogs.music', 'cogs.ai', 'cogs.general']

@@ -33,24 +33,32 @@ def ensure_db():
         with DBConnection() as c:
             c.execute('''CREATE TABLE IF NOT EXISTS memory
                          (user_id INTEGER, fact TEXT)''')
+            # Schema Updated: Added guild_id
             c.execute('''CREATE TABLE IF NOT EXISTS music_history
-                         (user_id INTEGER, title TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                         (user_id INTEGER, title TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, guild_id INTEGER DEFAULT 0)''')
             c.execute('''CREATE TABLE IF NOT EXISTS playlists
                          (user_id INTEGER, name TEXT, songs TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+            
+            # Migration check
+            try:
+                c.execute("ALTER TABLE music_history ADD COLUMN guild_id INTEGER DEFAULT 0")
+            except:
+                pass # Column likely exists
     except Exception as e:
         logger.error(f"Error inicializando DB: {e}")
 
-def log_song(user_id, title):
+def log_song(guild_id, user_id, title):
     try:
         with DBConnection() as c:
-            c.execute("INSERT INTO music_history (user_id, title) VALUES (?, ?)", (user_id, title))
+            c.execute("INSERT INTO music_history (guild_id, user_id, title) VALUES (?, ?, ?)", (guild_id, user_id, title))
     except Exception as e:
         logger.error(f"Error logueando canción: {e}")
 
-def get_recent_songs(limit=10):
+def get_recent_songs(guild_id, limit=10):
     try:
         with DBConnection() as c:
-            c.execute("SELECT title FROM music_history ORDER BY timestamp DESC LIMIT ?", (limit,))
+            # Filter by Guild ID to isolate contexts
+            c.execute("SELECT title FROM music_history WHERE guild_id=? ORDER BY timestamp DESC LIMIT ?", (guild_id, limit))
             rows = c.fetchall()
             return [row[0] for row in rows]
     except Exception as e:
