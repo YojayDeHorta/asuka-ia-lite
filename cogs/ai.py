@@ -200,6 +200,10 @@ class AI(commands.Cog):
                 if memories:
                     contexto_memoria = "Sabes esto de él: " + ", ".join(memories) + "."
 
+                # Si hay música sonando, no interrumpir (Busy Mode)
+                if ctx.voice_client and ctx.voice_client.is_playing():
+                    return await ctx.send("🤫 **Estoy ocupada poniendo música.**\nSi quieres charlar escribe `!chat`.")
+
                 if pregunta is None:
                     # Caso: Saludo / Join sin argumentos
                     prompt = (
@@ -245,6 +249,10 @@ class AI(commands.Cog):
         channel = ctx.message.author.voice.channel
         if ctx.voice_client is None:
             await channel.connect()
+
+        # Si hay música sonando, no interrumpir
+        if ctx.voice_client.is_playing():
+             return await ctx.send("🤫 **Shhh! No puedo hablar mientras suena la música.**")
 
         async with ctx.typing():
             try:
