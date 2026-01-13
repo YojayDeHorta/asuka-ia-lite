@@ -12,7 +12,7 @@ class DBConnection:
         if not os.path.exists("data"):
             os.makedirs("data")
             
-        self.conn = sqlite3.connect(DB_NAME)
+        self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
         return self.conn.cursor()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
