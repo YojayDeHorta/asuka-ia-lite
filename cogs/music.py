@@ -47,10 +47,14 @@ class MusicControlView(discord.ui.View):
         if vc:
             if vc.is_paused():
                 vc.resume()
-                await interaction.response.send_message("▶️ Reanudado", ephemeral=True)
+                button.emoji = "⏸️" # Icono para pausar
+                button.style = discord.ButtonStyle.secondary
             elif vc.is_playing():
                 vc.pause()
-                await interaction.response.send_message("⏸️ Pausado", ephemeral=True)
+                button.emoji = "▶️" # Icono para reanudar
+                button.style = discord.ButtonStyle.success # Destacar que está pausado
+            
+            await interaction.response.edit_message(view=self)
         else:
              await interaction.response.send_message("❌ No estoy conectada.", ephemeral=True)
 
@@ -62,7 +66,9 @@ class MusicControlView(discord.ui.View):
         vc = self.ctx.voice_client
         if vc and vc.is_playing():
             vc.stop()
-            await interaction.response.send_message("⏭️ Saltando...", ephemeral=True)
+            # Feed visual inmediato
+            button.disabled = True
+            await interaction.response.edit_message(view=self)
         else:
              await interaction.response.send_message("❌ Nada sonando.", ephemeral=True)
 
@@ -71,35 +77,31 @@ class MusicControlView(discord.ui.View):
         if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
              return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
              
-        # Reutilizar el comando stop
-        # Desactivar radio automáticamente al parar manualmente
         if self.ctx.guild.id in self.music_cog.radio_active:
              self.music_cog.radio_active[self.ctx.guild.id] = None
              
         await self.music_cog.stop(self.ctx)
-        # Deshabilitar botones después de parar
+        
         for child in self.children:
             child.disabled = True
-        await interaction.message.edit(view=self)
-        await interaction.message.edit(view=self)
-        await interaction.response.send_message("🛑 Detenido por botón.", ephemeral=True)
+        
+        await interaction.response.edit_message(view=self)
 
     @discord.ui.button(emoji="👎", style=discord.ButtonStyle.secondary)
     async def dislike_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.ctx.author and not interaction.user.guild_permissions.move_members:
              return await interaction.response.send_message("❌ No tú no pusiste la música.", ephemeral=True)
              
-        # Borrar del historial
         try:
             database.delete_last_history_entry(self.ctx.author.id)
         except Exception as e:
             logger.error(f"Error dislike DB: {e}")
             
-        # Reutilizar lógica de skip
         vc = self.ctx.voice_client
         if vc and vc.is_playing():
             vc.stop()
-            await interaction.response.send_message("👎 **No te gustó. Saltando y olvidando...**", ephemeral=True)
+            button.disabled = True
+            await interaction.response.edit_message(view=self)
         else:
              await interaction.response.send_message("❌ Nada sonando.", ephemeral=True)
 
