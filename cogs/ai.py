@@ -103,7 +103,13 @@ class AI(commands.Cog):
                 if memories:
                     contexto_memoria = "Lo que sabes de este usuario:\n" + "\n".join(f"- {m}" for m in memories)
                 
-                prompt_completo = f"Eres Asuka, un bot de música útil y sarcástico. {contexto_memoria}\nUsuario: {pregunta}\nResponde brevemente:"
+                contexto_musica = ""
+                music_cog = self.bot.get_cog('Music')
+                if music_cog and ctx.guild.id in music_cog.current_song_info:
+                    song = music_cog.current_song_info[ctx.guild.id]
+                    contexto_musica = f"\n(Contexto musical: Actualmente está sonando la canción '{song['title']}'. Opina sobre ella si te preguntan.)"
+
+                prompt_completo = f"Eres Asuka, un bot de música útil y sarcástico. {contexto_memoria}{contexto_musica}\nUsuario: {pregunta}\nResponde brevemente:"
                 
                 response = await chat_session.send_message_async(prompt_completo)
                 texto = response.text
