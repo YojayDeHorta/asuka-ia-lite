@@ -43,3 +43,17 @@ TTS_PITCH = SETTINGS['tts'].get('pitch', '+0Hz')
 # Music Settings
 DEFAULT_VOLUME = SETTINGS.get('music', {}).get('default_volume', 50) / 100
 ANNOUNCER_MODE = SETTINGS.get('music', {}).get('announcer_mode', "FULL") # FULL, TEXT, MUTE
+
+# FFMPEG & YTDL Options
+FFMPEG_OPTIONS = {
+    'options': '-vn',
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+}
+
+YTDL_FORMAT_OPTIONS = {
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'quiet': True,
+    'default_search': 'auto',
+    'nocheckcertificate': True,
+}

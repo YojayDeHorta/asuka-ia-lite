@@ -11,11 +11,8 @@ import json
 
 logger = setup_logger("MusicCog")
 
-# Opciones FFMPEG (Estabilidad para el Xiaomi)
-ffmpeg_options = {
-    'options': '-vn',
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
-}
+# Opciones FFMPEG
+ffmpeg_options = config.FFMPEG_OPTIONS
 
 # Custom Logger for YTDL to suppress warnings
 class YTDLLogger(object):
@@ -28,16 +25,11 @@ class YTDLLogger(object):
     def error(self, msg):
         logger.error(msg)
 
-ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'noplaylist': True,
-    'quiet': True,
-    'default_search': 'auto',
-    'nocheckcertificate': True,
-    'logger': YTDLLogger(),
-}
+# Configurar YTDL con Logger
+ytdl_opts = config.YTDL_FORMAT_OPTIONS.copy()
+ytdl_opts['logger'] = YTDLLogger()
 
-ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+ytdl = yt_dlp.YoutubeDL(ytdl_opts)
 
 # Botones Interactivos
 class MusicControlView(discord.ui.View):
@@ -121,162 +113,174 @@ class Music(commands.Cog):
         self.announcer_mode = {} # {guild_id: "FULL"|"TEXT"|"MUTE"}
         self.now_playing_messages = {} # {guild_id: discord.Message}
 
+    def _unwrap_queue_item(self, item):
+        """Desempaqueta items de radio candidato."""
+        is_radio_prefetch = False
+        if isinstance(item, tuple) and len(item) > 0 and item[0] == "RADIO_CANDIDATE":
+            item = item[1]
+            is_radio_prefetch = True
+        return item, is_radio_prefetch
+
+    def _handle_intro(self, ctx, item):
+        """Maneja Intros de TTS. Retorna True si se reprodujo algo (interrumpiendo flujo normal)."""
+        if item[0] == "INTRO":
+            # ("INTRO", file_path, intro_text)
+            file_path = item[1]
+            intro_text = item[2]
+            try:
+                # 20% más volumen para la voz
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(file_path), volume=config.DEFAULT_VOLUME * 1.2)
+                ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+                # Enviar texto visual también
+                asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
+            except Exception as e:
+                logger.error(f"Error playing intro: {e}")
+                self.check_queue(ctx)
+            return True
+
+        elif item[0] == "TEXT_INTRO":
+            # ("TEXT_INTRO", intro_text)
+            intro_text = item[1]
+            asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
+            # Pasar inmediatamente al siguiente item
+            self.check_queue(ctx)
+            return True
+        
+        return False
+
+    def _create_audio_source(self, ctx, item):
+        """
+        Transforma un item de cola en una fuente de audio reproducible.
+        Retorna: (source, title, duration, is_error)
+        """
+        source = None
+        title = "Desconocido"
+        duration = 0
+        
+        # Formatos:
+        # 1. (source, title, duration) -> Ready
+        # 2. (None, title, url, duration) -> YouTube URL
+        # 3. ("PENDING_SEARCH", query) -> Search
+        
+        if isinstance(item[0], discord.AudioSource):
+            source = item[0]
+            title = item[1]
+            if len(item) > 2: duration = item[2]
+            
+        elif item[0] is None:
+            # (None, title, url, duration)
+            title = item[1]
+            url = item[2]
+            if len(item) > 3: duration = item[3]
+            try:
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+            except Exception as e:
+                logger.error(f"Error creating source from URL {title}: {e}")
+                return None, title, 0, True
+        
+        elif item[0] == "PENDING_SEARCH":
+            query = item[1]
+            try:
+                data = ytdl.extract_info(query, download=False)
+                if 'entries' in data: data = data['entries'][0]
+                url = data['url']
+                title = data['title']
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+            except Exception as e:
+                logger.error(f"Error searching {query}: {e}")
+                return None, query, 0, True
+
+        return source, title, duration, False
+
     def check_queue(self, ctx):
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
             # Recuperar item de la cola
             item = self.queues[ctx.guild.id].pop(0)
             
-            # --- Unwrap Radio Candidate ---
-            # Si es una canción precargada de la radio, la desempaquetamos
-            is_radio_prefetch = False
-            if isinstance(item, tuple) and len(item) > 0 and item[0] == "RADIO_CANDIDATE":
-                item = item[1]
-                is_radio_prefetch = True
+            # 1. Desempaquetar
+            item, is_radio_prefetch = self._unwrap_queue_item(item)
             
-            # --- Manejo de Items Especiales (Radio) ---
-            if item[0] == "INTRO":
-                # ("INTRO", file_path, intro_text)
-                file_path = item[1]
-                intro_text = item[2]
-                try:
-                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(file_path), volume=config.DEFAULT_VOLUME * 1.2)
-                    ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
-                    asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
-                except Exception as e:
-                    logger.error(f"Error playing intro: {e}")
-                    self.check_queue(ctx)
+            # 2. Manejar Intros
+            if self._handle_intro(ctx, item):
                 return
 
-            elif item[0] == "TEXT_INTRO":
-                # ("TEXT_INTRO", intro_text)
-                intro_text = item[1]
-                asyncio.run_coroutine_threadsafe(ctx.send(f"🎙️ **Asuka:** *{intro_text}*"), self.bot.loop)
-                # Pasar inmediatamente al siguiente item (la canción)
+            # 3. Crear Audio Source
+            source, title, duration, error = self._create_audio_source(ctx, item)
+            
+            if error or not source:
+                # Si falló, pasamos al siguiente
                 self.check_queue(ctx)
                 return
 
-            # --- Manejo de Canciones ---
-            source = None
-            title = "Desconocido"
-            duration = 0
+            # 4. Reproducir
+            ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+            logger.info(f"Reproduciendo: {title}")
             
-            # Formatos posibles:
-            # 1. (source, title) -> Legacy
-            # 2. (source, title, duration) -> Ready to play
-            # 3. ("PENDING_SEARCH", query) -> Búsqueda pendiente
-            # 4. (None, title, url) -> URL de YT (Legacy)
-            # 5. (None, title, url, duration) -> URL de YT con duración
+            # 5. Registrar Info
+            self.current_song_info[ctx.guild.id] = {
+                'start_time': time.time(),
+                'duration': duration,
+                'title': title,
+                'is_radio': is_radio_prefetch,
+                'requester': ctx.author.display_name
+            }
             
-            if isinstance(item[0], discord.AudioSource):
-                source = item[0]
-                title = item[1]
-                if len(item) > 2: duration = item[2]
+            # 6. Actualizar UI (Async)
+            async def send_np():
+                view = MusicControlView(ctx, self)
+                m, s = divmod(int(duration), 60)
+                dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
                 
-            elif item[0] is None:
-                title = item[1]
-                url = item[2]
-                if len(item) > 3: duration = item[3]
-                try:
-                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
-                except Exception as e:
-                    logger.error(f"Error URL diferida {title}: {e}")
-                    return self.check_queue(ctx)
+                embed = discord.Embed(title="▶️ Ahora Suena", description=f"**{title}**", color=discord.Color.green())
+                embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
+                
+                # Next Song Preview
+                next_str = self._get_next_song_peek(ctx.guild.id)
+                embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
+
+                # Footer Info
+                radio_status = self.radio_active.get(ctx.guild.id)
+                if is_radio_prefetch:
+                     footer_text = "👤 DJ: Asuka AI 🤖"
+                     if radio_status and isinstance(radio_status, str) and radio_status.startswith("SPECIFIC:"):
+                         station = radio_status.split(":", 1)[1]
+                         embed.set_author(name=f"📻 Estación: {station}")
+                     else:
+                         embed.set_author(name="📻 Estación: Mix Automático")
+                else:
+                     footer_text = f"👤 Pedido por: {ctx.author.display_name}"
+                     embed.set_author(name="📀 Reproducción Manual")
+                
+                embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
+                    
+                msg = await ctx.send(embed=embed, view=view)
+                self.now_playing_messages[ctx.guild.id] = msg
+
+            asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
             
-            elif item[0] == "PENDING_SEARCH":
-                query = item[1]
-                try:
-                    data = ytdl.extract_info(query, download=False)
-                    if 'entries' in data: data = data['entries'][0]
-                    url = data['url']
-                    title = data['title']
-                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
-                except Exception as e:
-                    logger.error(f"Error buscando {query}: {e}")
-                    return self.check_queue(ctx)
+            # 7. Prefetch Logic
+            if self.queues[ctx.guild.id]:
+                 # Manual Prefetch
+                 asyncio.run_coroutine_threadsafe(self._prefetch_manual_queue(ctx), self.bot.loop)
+            elif self.radio_active.get(ctx.guild.id, False):
+                 # Radio Prefetch
+                 if ctx.guild.id not in self.radio_processing:
+                     logger.info("📻 Prefetching next radio song...")
+                     self.radio_processing.add(ctx.guild.id)
+                     asyncio.run_coroutine_threadsafe(self._queue_radio_song(ctx), self.bot.loop)
 
-            if source:
-                ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
-                print(f"Reproduciendo: {title}")
-                
-                self.current_song_info[ctx.guild.id] = {
-                    'start_time': time.time(),
-                    'duration': duration,
-                    'title': title,
-                    'is_radio': is_radio_prefetch,
-                    'requester': ctx.author.display_name
-                }
-                
-                async def send_np():
-                    view = MusicControlView(ctx, self)
-                    m, s = divmod(int(duration), 60)
-                    dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
-                    
-                    embed = discord.Embed(title="▶️ Ahora Suena", description=f"**{title}**", color=discord.Color.green())
-                    embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
-                    
-                    embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
-                    
-                    # --- Next Song Preview ---
-                    next_str = self._get_next_song_peek(ctx.guild.id)
-                    
-                    embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
-
-                    # --- Footer Info (Station / DJ) ---
-
-                    # --- Footer Info (Station / DJ) ---
-                    radio_status = self.radio_active.get(ctx.guild.id)
-                    
-                    if is_radio_prefetch:
-                         # Es canción de radio
-                         footer_text = "👤 DJ: Asuka AI 🤖"
-                         if radio_status and isinstance(radio_status, str) and radio_status.startswith("SPECIFIC:"):
-                             station = radio_status.split(":", 1)[1]
-                             embed.set_author(name=f"📻 Estación: {station}")
-                         else:
-                             embed.set_author(name="📻 Estación: Mix Automático")
-                    else:
-                         # Es canción de usuario
-                         footer_text = f"👤 Pedido por: {ctx.author.display_name}"
-                         embed.set_author(name="📀 Reproducción Manual")
-                    
-                    # Credit Update
-                    embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
-                        
-                    # Credit Update
-                    embed.set_footer(text=f"{footer_text} | Creado por Noel ❤️")
-                        
-                    msg = await ctx.send(embed=embed, view=view)
-                    self.now_playing_messages[ctx.guild.id] = msg
-
-                asyncio.run_coroutine_threadsafe(send_np(), self.bot.loop)
-                
-                # --- PREFETCH TRIGGERS ---
-                if self.queues[ctx.guild.id]:
-                     # Hay más canciones en cola manual -> Intentar resolver la siguiente para evitar lag
-                     asyncio.run_coroutine_threadsafe(self._prefetch_manual_queue(ctx), self.bot.loop)
-                     
-                elif self.radio_active.get(ctx.guild.id, False):
-                     # Cola vacía y Radio ON -> Generar siguiente de radio (si no hay nada pendiente)
-                     if ctx.guild.id not in self.radio_processing:
-                         logger.info("📻 Prefetching next radio song...")
-                         self.radio_processing.add(ctx.guild.id)
-                         asyncio.run_coroutine_threadsafe(self._queue_radio_song(ctx), self.bot.loop)
-
-            else:
-                self.check_queue(ctx)
         else:
             # Cola vacía (Idle)
             if self.radio_active.get(ctx.guild.id, False):
                 if ctx.guild.id not in self.radio_processing:
                     logger.info("📻 Cola vacía. Triggering Radio...")
                     self.radio_processing.add(ctx.guild.id)
-                    # Forzar generación y luego check_queue de nuevo
                     async def start_radio():
                         await self._queue_radio_song(ctx)
                         self.check_queue(ctx)
                     asyncio.run_coroutine_threadsafe(start_radio(), self.bot.loop)
             else:
-                print("Cola terminada.")
+                logger.info("Cola terminada.")
 
     @commands.command()
     async def play(self, ctx, *, query):
