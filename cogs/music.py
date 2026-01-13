@@ -230,8 +230,13 @@ class Music(commands.Cog):
             
             # 5.5 Registrar en Base de Datos (Historia)
             # CRÍTICO: Debe hacerse antes del Prefetch para que la radio sepa que esto ya sonó
+            # Si es Radio, usamos el ID del bot para no ensuciar las estadísticas del usuario
             try:
-                database.log_song(ctx.author.id, title)
+                log_user_id = ctx.author.id
+                if is_radio_prefetch:
+                    log_user_id = self.bot.user.id
+                
+                database.log_song(log_user_id, title)
             except Exception as e:
                 logger.error(f"Error logging song history in check_queue: {e}")
 
