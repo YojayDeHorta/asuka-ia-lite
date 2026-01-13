@@ -228,6 +228,13 @@ class Music(commands.Cog):
                 'requester': ctx.author.display_name
             }
             
+            # 5.5 Registrar en Base de Datos (Historia)
+            # CRÍTICO: Debe hacerse antes del Prefetch para que la radio sepa que esto ya sonó
+            try:
+                database.log_song(ctx.author.id, title)
+            except Exception as e:
+                logger.error(f"Error logging song history in check_queue: {e}")
+
             # 6. Actualizar UI (Async)
             async def send_np():
                 view = MusicControlView(ctx, self)
@@ -912,7 +919,7 @@ class Music(commands.Cog):
             
             # --- Generación de Contenido ---
             # Recuperar historial siempre para evitar repeticiones
-            recent_songs = database.get_recent_songs(limit=15)
+            recent_songs = database.get_recent_songs(limit=20)
             context_history = ""
             if recent_songs:
                 unique_recent = []
@@ -922,6 +929,7 @@ class Music(commands.Cog):
                         unique_recent.append(s)
                         vis.add(s)
                 context_history = ". ".join(unique_recent[:10])
+
 
             # Verificar modo
             radio_mode = self.radio_active.get(ctx.guild.id, "AUTO")
