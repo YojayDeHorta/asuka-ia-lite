@@ -115,6 +115,7 @@ class Music(commands.Cog):
         self.radio_session_start = set() # Set of guild_ids that just started radio (for First Song Intro)
         self.announcer_mode = {} # {guild_id: "FULL"|"TEXT"|"MUTE"}
         self.now_playing_messages = {} # {guild_id: discord.Message}
+        self.volumes = {} # {guild_id: float} - Volume per server
 
     def _unwrap_queue_item(self, item):
         """Desempaqueta items de radio candidato."""
@@ -165,8 +166,16 @@ class Music(commands.Cog):
         # 2. (None, title, url, duration) -> YouTube URL
         # 3. ("PENDING_SEARCH", query) -> Search
         
+        # Determinar volumen
+        vol = self.volumes.get(ctx.guild.id, config.DEFAULT_VOLUME)
+
         if isinstance(item[0], discord.AudioSource):
             source = item[0]
+            # Si es un objeto AudioSource ya creado, no podemos cambiar el volumen fácilmente si no es PCMVolumeTransformer
+            # Pero normalmente creamos nosotros los sources. Si viene de un plugin exótico, asumimos que maneja su vol.
+            # Mejor intentamos wrappear si no lo está.
+            if not isinstance(source, discord.PCMVolumeTransformer):
+                 source = discord.PCMVolumeTransformer(source, volume=vol)
             title = item[1]
             if len(item) > 2: duration = item[2]
             
@@ -176,7 +185,7 @@ class Music(commands.Cog):
             url = item[2]
             if len(item) > 3: duration = item[3]
             try:
-                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=vol)
             except Exception as e:
                 logger.error(f"Error creating source from URL {title}: {e}")
                 return None, title, 0, True
@@ -188,7 +197,7 @@ class Music(commands.Cog):
                 if 'entries' in data: data = data['entries'][0]
                 url = data['url']
                 title = data['title']
-                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+                source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=vol)
             except Exception as e:
                 logger.error(f"Error searching {query}: {e}")
                 return None, query, 0, True
@@ -489,7 +498,12 @@ class Music(commands.Cog):
             return await ctx.send("❌ No estoy conectada.")
             
         if 0 <= vol <= 100:
-            ctx.voice_client.source.volume = vol / 100
+            new_vol = vol / 100
+            if ctx.voice_client and ctx.voice_client.source:
+                ctx.voice_client.source.volume = new_vol
+            
+            self.volumes[ctx.guild.id] = new_vol # Guardar persistencia
+            
             await ctx.send(f"🔊 **Volumen:** {vol}%")
         else:
             await ctx.send("❌ Elige un número entre 0 y 100.")
@@ -576,6 +590,16 @@ class Music(commands.Cog):
             # Modo específico (siempre activa o cambia)
             self.radio_active[guild_id] = f"SPECIFIC:{query}"
             self.radio_session_start.add(guild_id) # Marcar inicio de sesión
+
+            # --- BUG FIX: Limpiar canciones de radio anterior ---
+            if guild_id in self.queues and self.queues[guild_id]:
+                original_q = self.queues[guild_id]
+                # Borrar todo lo que sea RADIO_CANDIDATE
+                clean_q = [x for x in original_q if not (isinstance(x, tuple) and len(x) > 0 and x[0] == "RADIO_CANDIDATE")]
+                if len(clean_q) < len(original_q):
+                    self.queues[guild_id] = clean_q
+                    logger.info(f"Purged old radio songs for new station request: {query}")
+            
             await ctx.send(f"🎧 **DJ Asuka: {query}** 🎚️\n*Solo pondré canciones de: {query}.*")
             should_start = True
         elif current_mode:
@@ -586,6 +610,16 @@ class Music(commands.Cog):
             # Encender automático
             self.radio_active[guild_id] = "AUTO"
             self.radio_session_start.add(guild_id) # Marcar inicio de sesión
+
+            # --- BUG FIX: Limpiar canciones de radio anterior ---
+            if guild_id in self.queues and self.queues[guild_id]:
+                original_q = self.queues[guild_id]
+                # Borrar todo lo que sea RADIO_CANDIDATE
+                clean_q = [x for x in original_q if not (isinstance(x, tuple) and len(x) > 0 and x[0] == "RADIO_CANDIDATE")]
+                if len(clean_q) < len(original_q):
+                    self.queues[guild_id] = clean_q
+                    logger.info("Purged old radio songs for AUTO mode.")
+
             await ctx.send("🎧 **DJ Asuka: AUTOMÁTICA** 🎚️\n*Pondré música basada en tu historial reciente.*")
             should_start = True
 
@@ -972,7 +1006,11 @@ class Music(commands.Cog):
 
             prompt = (
                 f"{prompt_instruction} "
-                "Además, genera una intro corta (máx 15 palabras) con personalidad de 'locutora Tsundere de anime' (burlona pero linda). "
+                "Además, genera una intro corta (máx 20 palabras) con personalidad de 'locutora Tsundere de anime'. "
+                "IMPORTANTE: "
+                "1. NO digas frases genéricas como 'aquí tienes tu canción' o 'hmph no me importa'. "
+                "2. Comenta algo ESPECÍFICO sobre la canción o artista que elegiste (un dato curioso, el vibe, o si es buena/mala). "
+                "3. Mantén el tono burlón/lindo, pero PRIORIZA hablar de la música. "
                 "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
             )
 
