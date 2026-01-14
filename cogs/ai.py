@@ -13,19 +13,30 @@ from utils.logger import setup_logger
 
 logger = setup_logger("AICog")
 
-# Configurar el modelo y la personalidad
+# Configurar el modelo
 genai.configure(api_key=config.GEMINI_KEY)
 generation_config = {
   "temperature": config.AI_TEMPERATURE,
 }
 model = genai.GenerativeModel(config.AI_MODEL, generation_config=generation_config)
-chat_session = model.start_chat(history=[])
+# Chat session removed from global scope
 
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.sessions = {} # {id: chat_session} - ID can be guild_id (Server) or user_id (DM)
         # Asegurar directorio temporal
         os.makedirs('temp', exist_ok=True)
+
+    def get_session(self, ctx):
+        """Obtiene o crea una sesión de chat para el servidor/usuario actual."""
+        session_id = ctx.guild.id if ctx.guild else ctx.author.id
+        
+        if session_id not in self.sessions:
+            self.sessions[session_id] = model.start_chat(history=[])
+            logger.info(f"Creada nueva sesión de IA para ID: {session_id}")
+            
+        return self.sessions[session_id]
 
     async def generate_greeting_audio(self, user, prompt_override=None):
         """Genera un saludo de audio para el usuario y devuelve la ruta del archivo."""
@@ -118,7 +129,8 @@ class AI(commands.Cog):
 
                 prompt_completo = f"Eres Asuka, un bot de música útil y sarcástico. {contexto_memoria}{contexto_historico}{contexto_musica}\nUsuario: {pregunta}\nResponde brevemente:"
                 
-                response = await chat_session.send_message_async(prompt_completo)
+                session = self.get_session(ctx)
+                response = await session.send_message_async(prompt_completo)
                 texto = response.text
                 
                 if len(texto) > 1900:
@@ -229,7 +241,8 @@ class AI(commands.Cog):
                     # Caso: Pregunta normal
                     prompt = f"Eres Asuka. Responde a esto de forma corta y charlada (máximo 2 frases): {pregunta}. {contexto_memoria}"
 
-                response = await chat_session.send_message_async(prompt)
+                session = self.get_session(ctx)
+                response = await session.send_message_async(prompt)
                 texto_respuesta = response.text.replace("*", "")
                 
                 await ctx.send(f"🗣️ **Diciendo:** {texto_respuesta}")

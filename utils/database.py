@@ -1,9 +1,11 @@
 import sqlite3
 import os
 from utils.logger import setup_logger
+import threading
 
 logger = setup_logger("Database")
 DB_NAME = "data/memory.db"
+db_lock = threading.Lock()
 
 class DBConnection:
     """Context Manager para manejar conexiones a SQLite de forma segura."""
@@ -11,7 +13,8 @@ class DBConnection:
         # Asegurar directorio antes de conectar
         if not os.path.exists("data"):
             os.makedirs("data")
-            
+        
+        db_lock.acquire()
         self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
         return self.conn.cursor()
 
@@ -25,8 +28,9 @@ class DBConnection:
                 # Si todo bien, commit
                 self.conn.commit()
         finally:
-            # Siempre cerrar
+            # Siempre cerrar y liberar lock
             self.conn.close()
+            db_lock.release()
 
 def ensure_db():
     try:
