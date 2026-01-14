@@ -957,18 +957,27 @@ class Music(commands.Cog):
             import re
             
             # --- Generación de Contenido ---
-            # Recuperar historial siempre para evitar repeticiones
+            # Recuperar historial
             recent_songs = database.get_recent_songs(ctx.guild.id, limit=20)
-            context_history = ""
+            
+            immediate_context = ""
+            older_context = ""
+            
             if recent_songs:
+                # Deduplicar preservando orden
                 unique_recent = []
                 vis = set()
                 for s in recent_songs:
                     if s not in vis:
                         unique_recent.append(s)
                         vis.add(s)
-                context_history = ". ".join(unique_recent[:10])
-
+                
+                # Split: Top 5 (Recent) vs Rest (Older)
+                immediate_list = unique_recent[:5]
+                older_list = unique_recent[5:15] # Take next 10
+                
+                immediate_context = ". ".join(immediate_list)
+                older_context = ". ".join(older_list)
 
             # Verificar modo
             radio_mode = self.radio_active.get(ctx.guild.id, "AUTO")
@@ -979,19 +988,21 @@ class Music(commands.Cog):
                  prompt_instruction = (
                      f"Tu tarea es elegir la siguiente canción OBLIGATORIAMENTE relacionada con: '{target}'. "
                      f"Si es un artista, pon SOLO canciones de ese artista o colaboraciones directas. "
-                     f"IMPORTANTE: NO REPITAS ninguna de las siguientes canciones recientes: [{context_history}]. "
-                     f"Si ya sonaron todas los éxitos, busca canciones menos conocidas (deep cuts) de '{target}'."
+                     f"Historial reciente: [{immediate_context}]. NO REPITAS NADA."
                  )
             else:
-                # Modo AUTO (Historial)
+                # Modo AUTO (Historial Inteligente)
                 prompt_instruction = (
-                    f"Eres un DJ experto. Canciones recientes: {context_history}. "
-                    "Tu tarea es elegir la siguiente canción BASÁNDOTE EXCLUSIVAMENTE EN EL GÉNERO Y VIBE del historial reciente. "
-                    "MANTÉN LA COHERENCIA. Si el historial es Electrónica (ej. Daft Punk), sigue con Electrónica/French House. "
-                    "Si es Rock, sigue con Rock. "
-                    "IMPORTANTE: NO REPITAS ninguna de las canciones recientes del historial. Debes elegir algo NUEVO. "
-                    "PROHIBIDO cambiar drásticamente de género (ej. saltar de Metal a Reggaeton) a menos que el historial muestre esa mezcla. "
-                    "Evita éxitos latinos genéricos (ej. Carlos Vives, Shakira) si el contexto es totalmente diferente (ej. Electrónica, Anime, Metal)."
+                    f"Eres un DJ experto. "
+                    f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
+                    f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
+                    
+                    "Tu tarea es elegir la siguiente canción. "
+                    "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
+                    "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
+                    "Si no hay cambio claro, mantén la coherencia general. "
+                    
+                    "IMPORTANTE: NO REPITAS ninguna canción del historial."
                 )
             
             # --- Detectar Inicio de Sesión ---
