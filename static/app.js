@@ -88,7 +88,28 @@ searchInput.addEventListener("keypress", async (e) => {
 });
 
 // --- Player Logic ---
+// --- Player Logic ---
 async function playTrack(track) {
+    // Add to Queue
+    currentQueue.push(track);
+
+    // Feedback in UI (Button change momentarily)
+    const btns = document.querySelectorAll('.track-item button');
+    // Simple feedback: Toast or Log. Let's start with logic.
+    console.log("Added to queue:", track.title);
+
+    // If nothing is playing, start now
+    if (currentIndex === -1) {
+        currentIndex = 0;
+        await loadAndPlay(currentQueue[currentIndex]);
+    } else {
+        // Optional: Toast "Added to queue"
+    }
+}
+
+async function loadAndPlay(track) {
+    if (!track) return;
+
     // UI Update
     document.getElementById("np-title").innerText = track.title;
     document.getElementById("np-artist").innerText = "Cargando...";
@@ -97,16 +118,10 @@ async function playTrack(track) {
     } else {
         document.getElementById("np-img").src = "https://via.placeholder.com/50";
     }
-    document.getElementById("btn-play").innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    playBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     try {
         // Resolve URL if needed
-        let url = track.url;
-        // Check if we need to resolve (e.g. valid URL?)
-        // Our API resolve endpoint always resolves
-        // But if track comes from search, it might lack direct stream URL if it was a query type
-        // Actually our MusicCore.search returns 'video' type with url, or 'query' type.
-
         // Always force resolve to be safe/fresh
         const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
         const data = await res.json();
@@ -117,23 +132,47 @@ async function playTrack(track) {
         document.getElementById("np-artist").innerText = "Reproduciendo";
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
 
-        // Queue Logic (Simple: Just play this one for now)
-        currentQueue = [track];
-        currentIndex = 0;
-
     } catch (e) {
-        alert("Error reproduciendo: " + e);
+        console.error("Error playing:", e);
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        // Try next if error?
     }
 }
 
+// Controls
 playBtn.onclick = () => {
+    if (!audioPlayer.src) return;
     if (audioPlayer.paused) {
         audioPlayer.play();
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
     } else {
         audioPlayer.pause();
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+};
+
+document.getElementById("btn-prev").onclick = () => {
+    if (currentIndex > 0) {
+        currentIndex--;
+        loadAndPlay(currentQueue[currentIndex]);
+    }
+};
+
+document.getElementById("btn-next").onclick = () => {
+    if (currentIndex < currentQueue.length - 1) {
+        currentIndex++;
+        loadAndPlay(currentQueue[currentIndex]);
+    }
+};
+
+// Auto-Next
+audioPlayer.onended = () => {
+    if (currentIndex < currentQueue.length - 1) {
+        currentIndex++;
+        loadAndPlay(currentQueue[currentIndex]);
+    } else {
+        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        document.getElementById("np-artist").innerText = "Fin de la cola";
     }
 };
 
