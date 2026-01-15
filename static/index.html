@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asuka Web 🎵</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-robot"></i> Asuka
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="active" onclick="showSection('home')"><i class="fa-solid fa-house"></i> Inicio</a>
+                <a href="#" onclick="showSection('search')"><i class="fa-solid fa-search"></i> Buscar</a>
+                <a href="#" onclick="showSection('library')"><i class="fa-solid fa-book"></i> Biblioteca</a>
+            </nav>
+            <div class="playlists-section">
+                <h3>Mis Playlists</h3>
+                <ul id="playlist-list">
+                    <!-- JS Injected -->
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <button id="menu-toggle" class="mobile-only"><i class="fa-solid fa-bars"></i></button>
+                <div class="search-bar-container">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="global-search" placeholder="¿Qué quieres escuchar hoy?">
+                </div>
+            </header>
+
+            <div id="content-area">
+                <!-- Dynamic Content -->
+                <div id="home-view" class="view active">
+                    <h1>Buenos días ☀️</h1>
+                    <div class="cards-grid" id="recommendations-grid">
+                        <!-- Placeholders -->
+                        <div class="card glass">
+                            <div class="card-img" style="background-color: #ff6b6b">🎵</div>
+                            <h4>Tendencias</h4>
+                            <p>Lo más escuchado</p>
+                        </div>
+                        <div class="card glass">
+                            <div class="card-img" style="background-color: #4ecdc4">🎸</div>
+                            <h4>Rock Mix</h4>
+                            <p>Para rockear</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="results-view" class="view" style="display: none;">
+                    <h2>Resultados</h2>
+                    <div id="search-results" class="list-layout">
+                        <!-- JS Injected -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Player -->
+        <div class="player-bar glass-panel">
+            <div class="now-playing">
+                <img id="np-img" src="https://via.placeholder.com/50" alt="Cover">
+                <div class="np-info">
+                    <h4 id="np-title">Nada sonando</h4>
+                    <p id="np-artist">Selecciona una canción</p>
+                </div>
+            </div>
+
+            <div class="player-controls">
+                <div class="control-buttons">
+                    <button id="btn-prev"><i class="fa-solid fa-backward-step"></i></button>
+                    <button id="btn-play" class="play-btn"><i class="fa-solid fa-play"></i></button>
+                    <button id="btn-next"><i class="fa-solid fa-forward-step"></i></button>
+                </div>
+                <div class="progress-container">
+                    <span id="curr-time">00:00</span>
+                    <div class="progress-bar-wrapper" id="progress-wrapper">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <span id="tot-time">00:00</span>
+                </div>
+            </div>
+
+            <div class="volume-controls">
+                <i class="fa-solid fa-volume-high"></i>
+                <input type="range" min="0" max="1" step="0.1" value="1" id="vol-slider">
+            </div>
+
+            <audio id="audio-player"></audio>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
