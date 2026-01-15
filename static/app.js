@@ -165,3 +165,11 @@ function formatTime(s) {
 document.getElementById("menu-toggle").onclick = () => {
     document.getElementById("sidebar").classList.toggle("active");
 }
+
+// Volume Control
+const volSlider = document.getElementById("vol-slider");
+if (volSlider) {
+    volSlider.oninput = (e) => {
+        audioPlayer.volume = e.target.value;
+    };
+}
