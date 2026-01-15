@@ -23,6 +23,7 @@
                 <a href="#" class="active" onclick="showSection('home')"><i class="fa-solid fa-house"></i> Inicio</a>
                 <a href="#" onclick="showSection('search')"><i class="fa-solid fa-search"></i> Buscar</a>
                 <a href="#" onclick="showSection('library')"><i class="fa-solid fa-book"></i> Biblioteca</a>
+                <a href="#" onclick="showSection('queue')"><i class="fa-solid fa-list-ol"></i> Cola</a>
             </nav>
             <div class="playlists-section">
                 <h3>Mis Playlists</h3>
@@ -67,6 +68,13 @@
                         <!-- JS Injected -->
                     </div>
                 </div>
+
+                <div id="queue-view" class="view" style="display: none;">
+                    <h2>Cola de Reproducción</h2>
+                    <div id="queue-list" class="list-layout">
+                        <p style="color: #666; padding: 20px;">La cola está vacía.</p>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -104,7 +112,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
 </body>
 
 </html>

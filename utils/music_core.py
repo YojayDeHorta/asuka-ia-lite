@@ -72,6 +72,9 @@ class MusicCore:
             loop = asyncio.get_event_loop()
             data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(query, download=False))
             
+            if not data:
+                return []
+
             if 'entries' in data:
                 # Playlist o Search Result
                 entries = list(data['entries'])
@@ -116,6 +119,9 @@ class MusicCore:
                 
             data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(query, download=False))
             
+            if not data:
+                return None
+
             if 'entries' in data:
                 data = data['entries'][0]
                 

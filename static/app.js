@@ -31,15 +31,55 @@ function showSection(id) {
     });
 
     // 3. Show Target View
-    if (id === 'search' || id === 'home' || id === 'library') {
+    if (id === 'search' || id === 'home' || id === 'library' || id === 'queue') {
         // Mapping: home->home-view, search->results-view, library->(placeholder for now)
         let targetId = 'home-view';
         if (id === 'search') targetId = 'results-view';
-        // if (id === 'library') targetId = ...;
+        if (id === 'queue') {
+            targetId = 'queue-view';
+            updateQueueUI();
+        }
 
         const view = document.getElementById(targetId);
         if (view) view.style.display = 'block';
     }
+}
+
+function updateQueueUI() {
+    const container = document.getElementById("queue-list");
+    if (!container) return;
+
+    if (currentQueue.length === 0) {
+        container.innerHTML = '<p style="color: #666; padding: 20px;">La cola está vacía.</p>';
+        return;
+    }
+
+    container.innerHTML = "";
+    currentQueue.forEach((track, index) => {
+        const el = document.createElement("div");
+        el.className = "track-item";
+        if (index === currentIndex) el.classList.add("playing"); // Add style for current song
+
+        const thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
+        const statusIcon = index === currentIndex ? '<i class="fa-solid fa-volume-high" style="color:var(--primary)"></i>' : `<span style="color:#666">${index + 1}</span>`;
+
+        el.innerHTML = `
+            <div style="width: 30px; text-align: center;">${statusIcon}</div>
+            <div class="track-img" style="${thumbStyle}"></div>
+            <div class="track-info">
+                <h4>${track.title}</h4>
+                <p>En cola</p>
+            </div>
+             <button class="track-action" onclick="playQueueIndex(${index})"><i class="fa-solid fa-play"></i></button>
+        `;
+        container.appendChild(el);
+    });
+}
+
+function playQueueIndex(index) {
+    currentIndex = index;
+    loadAndPlay(currentQueue[currentIndex]);
+    updateQueueUI();
 }
 
 // --- Search ---
@@ -97,6 +137,9 @@ async function playTrack(track) {
     const btns = document.querySelectorAll('.track-item button');
     // Simple feedback: Toast or Log. Let's start with logic.
     console.log("Added to queue:", track.title);
+
+    // Refresh Queue UI if visible
+    updateQueueUI();
 
     // If nothing is playing, start now
     if (currentIndex === -1) {
@@ -170,6 +213,7 @@ audioPlayer.onended = () => {
     if (currentIndex < currentQueue.length - 1) {
         currentIndex++;
         loadAndPlay(currentQueue[currentIndex]);
+        updateQueueUI();
     } else {
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
         document.getElementById("np-artist").innerText = "Fin de la cola";
