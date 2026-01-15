@@ -3,6 +3,7 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 from utils import database
+from utils.music_core import MusicCore
 import time
 import config
 from utils.logger import setup_logger
@@ -13,23 +14,6 @@ logger = setup_logger("MusicCog")
 
 # Opciones FFMPEG
 ffmpeg_options = config.FFMPEG_OPTIONS
-
-# Custom Logger for YTDL to suppress warnings
-class YTDLLogger(object):
-    def debug(self, msg):
-        pass
-
-    def warning(self, msg):
-        pass
-
-    def error(self, msg):
-        logger.error(msg)
-
-# Configurar YTDL con Logger
-ytdl_opts = config.YTDL_FORMAT_OPTIONS.copy()
-ytdl_opts['logger'] = YTDLLogger()
-
-ytdl = yt_dlp.YoutubeDL(ytdl_opts)
 
 # Botones Interactivos
 class MusicControlView(discord.ui.View):
@@ -108,6 +92,7 @@ class MusicControlView(discord.ui.View):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.core = MusicCore()
         self.queues = {}
         self.current_song_info = {} # {guild_id: {'start_time': 0, 'duration': 0, 'title': 'name'}}
         self.radio_active = {} # {guild_id: bool or string}
@@ -193,8 +178,13 @@ class Music(commands.Cog):
         elif item[0] == "PENDING_SEARCH":
             query = item[1]
             try:
-                data = ytdl.extract_info(query, download=False)
-                if 'entries' in data: data = data['entries'][0]
+                # Usar Core para resolver
+                data = asyncio.run_coroutine_threadsafe(self.core.get_stream_url(query), self.bot.loop).result()
+                
+                if not data:
+                     logger.error(f"Error resolving {query}: No data")
+                     return None, query, 0, True
+
                 url = data['url']
                 title = data['title']
                 source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=vol)
@@ -331,121 +321,74 @@ class Music(commands.Cog):
                 # Opcional: Avisar al usuario
                 # await ctx.send("🧹 **Interrumpiendo a la radio para poner tu canción...**")
 
-        if 'open.spotify.com' in query:
-            if not config.SPOTIPY_CLIENT_ID:
-                return await ctx.send("❌ Spotify no está configurado en el bot.")
-            
-            await msg.edit(content="🕵️‍♀️ **Analizando enlace de Spotify...**")
-            
-            try:
-                import spotipy
-                from spotipy.oauth2 import SpotifyClientCredentials
-                
-                sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-                    client_id=config.SPOTIPY_CLIENT_ID,
-                    client_secret=config.SPOTIPY_CLIENT_SECRET
-                ))
-                
-                track_names = []
-                
-                if 'track' in query:
-                    track = sp.track(query)
-                    track_names.append(f"{track['artists'][0]['name']} - {track['name']}")
-                elif 'playlist' in query:
-                    results = sp.playlist_tracks(query)
-                    for item in results['items']:
-                        track = item['track']
-                        track_names.append(f"{track['artists'][0]['name']} - {track['name']}")
-                
-                await msg.edit(content=f"🎶 **Encontré {len(track_names)} canciones de Spotify.** Añadiendo...")
-                
-                # Procesar la primera o única canción inmediatamente
-                first_query = track_names.pop(0)
-                # El resto se añadirán en background para no bloquear
-                for t in track_names:
-                     self.queues[ctx.guild.id].append(("PENDING_SEARCH", t))
-                
-                query = first_query
-                
-            except Exception as e:
-                logger.error(f"Error Spotify: {e}")
-                return await msg.edit(content="❌ Error leyendo Spotify.")
-
-        # YouTube Search / Extraction
-        loop = asyncio.get_event_loop()
+        # --- BUSQUEDA CON MUSIC CORE ---
+        await msg.edit(content=f"🔍 **Buscando en todas las plataformas:** `{query}`...")
+        
         try:
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
+             results = await self.core.search(query)
         except Exception as e:
-            return await msg.edit(content="❌ Error buscando la canción.")
+             return await msg.edit(content="❌ Error buscando la canción.")
 
-        # Manejo de Playlists de YouTube / Entradas múltiples
-        added_songs = []
-        if 'entries' in data:
-            # Es una playlist o búsqueda
-            entries = list(data['entries'])
-            if entries:
-                first_entry = entries.pop(0)
-                data = first_entry # La que sonará ya
-                
-                # Añadir el resto a la cola
-                for entry in entries:
-                    # Intentar sacar duración
-                    e_duration = entry.get('duration', 0)
-                    self.queues[ctx.guild.id].append((None, entry['title'], entry['url'], e_duration))
-                    added_songs.append(entry['title'])
-            else:
-                 return await msg.edit(content="❌ No encontré resultados para esa búsqueda.")
-                
-        url = data['url']
-        title = data['title']
-        duration = data.get('duration', 0)
-        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=config.DEFAULT_VOLUME)
+        if not results:
+             return await msg.edit(content="❌ No encontré resultados.")
 
-        guild_id = ctx.guild.id
-        if guild_id not in self.queues:
-            self.queues[guild_id] = []
+        # --- PROCESAR RESULTADOS ---
+        added_count = 0
+        first_track = None
+        
+        # Si hay muchos resultados (playlist), procesamos
+        # La primera canción se procesa diferente (se intenta reproducir)
+        
+        for i, res in enumerate(results):
+             # Adapting item format
+             # New format needed for queue: 
+             # (source_obj, title, duration) -> Ready
+             # (None, title, url, duration) -> Stream Ready
+             # ("PENDING_SEARCH", query) -> Needs Resolution
+             
+             # Map Core Result -> Queue Item
+             item = None
+             
+             if res['type'] == 'query':
+                  # Spotify / Generic Search
+                  item = ("PENDING_SEARCH", res['title']) # Title used as query if URL not available or just to show title
+                  # Actually if URL is the query, we should use it? 
+                  # Core returns 'title' as "Artist - Song". Let's use that as query.
+                  pass
+             elif res['type'] == 'video':
+                  # YouTube Direct
+                  item = (None, res['title'], res['url'], res['duration'])
+             
+             if item:
+                  self.queues[ctx.guild.id].append(item)
+                  added_count += 1
+                  if i == 0: first_track = res
 
-        if ctx.voice_client.is_playing():
-            # Si ya suena algo, añadir esta a la cola (formato tuple de 3 para legacy o update check_queue to handle 4?)
-            # check_queue handlea tuples de 2, 3. Vamos a añadir duración como 4º elemento o usar formato 2 para source listo.
-            # Ojo: check_queue maneja (source, title) como item length 2.
-            # Si pasamos (source, title, duration), check_queue necesita saber manejarlo.
-            # Update: Modificaré check_queue después para aceptar length 3 con source.
-            self.queues[guild_id].append((source, title, duration))
-            
-            embed = discord.Embed(title="🎵 Añadida a la cola", description=f"**{title}**", color=discord.Color.blue())
-            embed.set_footer(text="Creado por Noel ❤️")
-            await msg.delete()
-            await ctx.send(embed=embed)
-            
-            # Update Now Playing Next info
-            await self._update_np_embed(ctx)
+        if added_count == 0:
+             return await msg.edit(content="❌ No se pudieron añadir canciones.")
+
+        title = first_track['title']
+        duration = first_track['duration']
+        
+        # --- Feedback ---
+        if added_count > 1:
+            await msg.edit(content=f"🎶 **Añadidas {added_count} canciones** a la cola.")
         else:
-            ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
-            
-            # Guardamos info actual
-            self.current_song_info[guild_id] = {
-                'start_time': time.time(),
-                'duration': duration,
-                'title': title
-            }
-            
-            view = MusicControlView(ctx, self)
-            m, s = divmod(int(duration), 60)
-            dur_str = f"[{m:02d}:{s:02d}]" if duration > 0 else "[LIVE]"
-            
-            # --- Next Song Preview ---
-            next_str = self._get_next_song_peek(ctx.guild.id)
-
-            embed = discord.Embed(title="▶️ Reproduciendo ahora", description=f"**{title}**", color=discord.Color.green())
-            embed.add_field(name="⏱️ Duración", value=f"`{dur_str}`", inline=True)
-            embed.add_field(name="⏭️ Siguiente", value=f"`{next_str}`", inline=True)
-            embed.set_author(name="📀 Reproducción Manual")
-            embed.set_footer(text=f"👤 Pedido por: {ctx.author.display_name} | Creado por Noel ❤️")
             await msg.delete()
-            await ctx.send(embed=embed, view=view)
+            
+        # --- Trigger Playback ---
+        if ctx.voice_client.is_playing():
+             # Solo avisar
+             if added_count == 1:
+                 embed = discord.Embed(title="🎵 Añadida a la cola", description=f"**{title}**", color=discord.Color.blue())
+                 embed.set_footer(text="Creado por Noel ❤️")
+                 await ctx.send(embed=embed)
+                 await self._update_np_embed(ctx)
+        else:
+             # Start
+             self.check_queue(ctx)
 
-        # Guardar en historial musical
+        # Log History (First song only for brevity)
         try:
             database.log_song(ctx.guild.id, ctx.author.id, title)
         except Exception as e:
@@ -923,11 +866,13 @@ class Music(commands.Cog):
         logger.info(f"⏭️ Prefetching Manual Item: {query}")
         
         try:
-            loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
+            # Utilizar Core para obtener URL
+            data = await self.core.get_stream_url(query)
             
-            if 'entries' in data: 
-                data = data['entries'][0]
+            if not data:
+                # Si falló, intentar fallback o loguear
+                logger.error(f"Manual prefetch failed for {query}")
+                return
             
             # Construir item resuelto (Formato 5: None, title, url, duration)
             resolved_item = (None, data['title'], data['url'], data.get('duration', 0))
@@ -1069,18 +1014,19 @@ class Music(commands.Cog):
             elif current_announcer_mode == "TEXT":
                 queue_items.append(("TEXT_INTRO", intro))
             
-            # 2. Song Item (Buscar URL)
-            loop = asyncio.get_event_loop()
+            # 2. Song Item (Buscar URL con Core)
             try:
-                data = await loop.run_in_executor(None, lambda: ytdl.extract_info(song_name, download=False))
-                if 'entries' in data: data = data['entries'][0]
+                data = await self.core.get_stream_url(song_name)
                 
-                url = data['url']
-                title = data['title']
-                duration = data.get('duration', 0)
-                
-                # Append formatted song item
-                queue_items.append((None, title, url, duration))
+                if data:
+                    url = data['url']
+                    title = data['title']
+                    duration = data.get('duration', 0)
+                    
+                    # Append formatted song item
+                    queue_items.append((None, title, url, duration))
+                else:
+                    logger.error(f"Failed to find stream for radio: {song_name}")
                 
             except Exception as e:
                 logger.error(f"Error fetching radio song {song_name}: {e}")
