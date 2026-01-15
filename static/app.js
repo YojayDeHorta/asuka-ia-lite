@@ -9,13 +9,36 @@ let currentQueue = [];
 let currentIndex = -1;
 
 // --- Navigation ---
+// --- Navigation ---
 function showSection(id) {
+    // 1. Hide all views
     document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
-    document.querySelector('.nav-links .active').classList.remove('active');
 
-    if (id === 'search' || id === 'home') { // Simple mapping
-        const targetId = id === 'home' ? 'home-view' : 'results-view';
-        document.getElementById(targetId).style.display = 'block';
+    // 2. Manage Active Link
+    // Remove active from any currently active link
+    const currentActive = document.querySelector('.nav-links .active');
+    if (currentActive) {
+        currentActive.classList.remove('active');
+    }
+
+    // Add active to new link (find by onclick content roughly or ID)
+    // Simpler: Search for link containing the function call
+    const links = document.querySelectorAll('.nav-links a');
+    links.forEach(link => {
+        if (link.getAttribute("onclick") && link.getAttribute("onclick").includes(`'${id}'`)) {
+            link.classList.add('active');
+        }
+    });
+
+    // 3. Show Target View
+    if (id === 'search' || id === 'home' || id === 'library') {
+        // Mapping: home->home-view, search->results-view, library->(placeholder for now)
+        let targetId = 'home-view';
+        if (id === 'search') targetId = 'results-view';
+        // if (id === 'library') targetId = ...;
+
+        const view = document.getElementById(targetId);
+        if (view) view.style.display = 'block';
     }
 }
 
@@ -42,8 +65,11 @@ searchInput.addEventListener("keypress", async (e) => {
             data.forEach(track => {
                 const el = document.createElement("div");
                 el.className = "track-item";
+                // Use a default icon if thumbnail is missing
+                const thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
+
                 el.innerHTML = `
-                    <div class="track-img"></div>
+                    <div class="track-img" style="${thumbStyle}"></div>
                     <div class="track-info">
                         <h4>${track.title}</h4>
                         <p>${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}</p>
@@ -66,6 +92,11 @@ async function playTrack(track) {
     // UI Update
     document.getElementById("np-title").innerText = track.title;
     document.getElementById("np-artist").innerText = "Cargando...";
+    if (track.thumbnail) {
+        document.getElementById("np-img").src = track.thumbnail;
+    } else {
+        document.getElementById("np-img").src = "https://via.placeholder.com/50";
+    }
     document.getElementById("btn-play").innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     try {

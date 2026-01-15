@@ -59,7 +59,8 @@ class MusicCore:
                         'title': name, # Título provisional
                         'url': query,  # URL de origen (Spotify)
                         'duration': 0,
-                        'source': 'spotify_query'
+                        'source': 'spotify_query',
+                        'thumbnail': track['album']['images'][0]['url'] if track['album']['images'] else None
                     })
                 return results
             except Exception as e:
@@ -81,7 +82,8 @@ class MusicCore:
                         'url': entry.get('url'), # Stream URL or Watch URL depending on extraction
                         'webpage_url': entry.get('webpage_url'),
                         'duration': entry.get('duration', 0),
-                        'source': 'youtube'
+                        'source': 'youtube',
+                        'thumbnail': entry.get('thumbnail')
                      })
             else:
                 # Single Video
@@ -91,7 +93,8 @@ class MusicCore:
                     'url': data.get('url'),
                     'webpage_url': data.get('webpage_url'),
                     'duration': data.get('duration', 0),
-                    'source': 'youtube'
+                    'source': 'youtube',
+                    'thumbnail': data.get('thumbnail')
                 })
                 
         except Exception as e:
@@ -120,7 +123,8 @@ class MusicCore:
                 'title': data.get('title'),
                 'url': data.get('url'), # Direct Stream URL
                 'duration': data.get('duration', 0),
-                'webpage_url': data.get('webpage_url')
+                'webpage_url': data.get('webpage_url'),
+                'thumbnail': data.get('thumbnail')
             }
         except Exception as e:
             logger.error(f"Stream Resolution Error: {e}")
