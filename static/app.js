@@ -138,9 +138,19 @@ async function loadHistory() {
     container.innerHTML = '<p style="text-align:center; color:#888;">Cargando historial...</p>';
 
     try {
-        const res = await authenticatedFetch(`${API_URL}/history`);
-        if (!res.ok) throw new Error("Failed");
-        const history = await res.json();
+        // Fetch History AND Favorites in parallel
+        const [histRes, favRes] = await Promise.all([
+            authenticatedFetch(`${API_URL}/history`),
+            authenticatedFetch(`${API_URL}/favorites`)
+        ]);
+
+        if (!histRes.ok) throw new Error("Failed to load history");
+
+        const history = await histRes.json();
+        const favorites = favRes.ok ? await favRes.json() : [];
+
+        // Create Set for O(1) lookup
+        const favSet = new Set(favorites.map(f => f.title));
 
         container.innerHTML = "";
 
@@ -151,6 +161,11 @@ async function loadHistory() {
 
         // Render List
         history.forEach((item, index) => {
+            const isLiked = favSet.has(item.title);
+            const heartClass = isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart";
+            const heartColor = isLiked ? "#ff4757" : "#b3b3b3";
+            const safeTitle = item.title.replace(/'/g, "\\'"); // Escape single quotes
+
             const el = document.createElement("div");
             el.className = "track-item";
             el.innerHTML = `
@@ -160,12 +175,20 @@ async function loadHistory() {
                     <h4>${item.title}</h4>
                     <p>Historial Reciente</p>
                 </div>
-                <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i></button>
+                <div class="track-actions" style="display:flex; gap:10px;">
+                    <button class="track-action" title="Me gusta" style="color: ${heartColor};" onclick="toggleHistoryLike(this, '${safeTitle}')">
+                        <i class="${heartClass}"></i>
+                    </button>
+                    <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${safeTitle}')">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
             `;
             container.appendChild(el);
         });
 
     } catch (e) {
+        console.error(e);
         container.innerHTML = '<p style="color:red">Error cargando historial.</p>';
     }
 }
@@ -236,14 +259,14 @@ async function loadAndPlay(track) {
             const data = await res.json();
             if (data.status === "error") throw new Error(data.message);
 
-            const resolvedStreamUrl = API_URL + data.stream_url;
+            const resolvedStreamUrl = data.url;
             console.log("Playing:", resolvedStreamUrl);
 
             // Update Track Info
             track.url = resolvedStreamUrl;
             track.thumbnail = data.thumbnail;
             track.resolved = true;
-            streamUrl = resolvedStreamUrl; // Update the local streamUrl variable
+            streamUrl = resolvedStreamUrl; // Update local var
         }
 
         // Unified UI & Metadata Update
@@ -575,6 +598,51 @@ if (volSlider) {
 
 // --- Likes System ---
 let currentTrackLiked = false;
+
+
+async function toggleHistoryLike(btn, title) {
+    const icon = btn.querySelector("i");
+    const isLiked = icon.classList.contains("fa-solid");
+    const newState = !isLiked;
+
+    // Optimistic Update
+    updateHeartVisual(btn, newState);
+
+    // Sync Main Player if matching
+    const currentTitle = document.getElementById("np-title").innerText;
+    if (title === currentTitle) {
+        const mainBtn = document.getElementById("like-btn");
+        // Update global state if it matches current track
+        // currentTrackLiked is defined above
+        currentTrackLiked = newState;
+        updateHeartVisual(mainBtn, newState);
+    }
+
+    try {
+        await authenticatedFetch(`${API_URL}/favorites`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, is_liked: newState })
+        });
+        showToast(newState ? "Añadido a Favoritos" : "Eliminado de Favoritos", "success");
+    } catch (e) {
+        showToast("Error al actualizar favoritos", "error");
+        // Revert
+        updateHeartVisual(btn, !newState);
+    }
+}
+
+function updateHeartVisual(btn, isLiked) {
+    if (!btn) return;
+    const icon = btn.querySelector("i");
+    if (isLiked) {
+        icon.className = "fa-solid fa-heart";
+        btn.style.color = "#ff4757";
+    } else {
+        icon.className = "fa-regular fa-heart";
+        btn.style.color = "#b3b3b3";
+    }
+}
 
 async function updateLikeButtonState(title) {
     const btn = document.getElementById("like-btn");
