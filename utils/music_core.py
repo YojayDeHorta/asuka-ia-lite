@@ -87,8 +87,10 @@ class MusicCore:
             
             # Apply limit if text search
             search_query = query
-            if limit and not query.startswith("http"):
-                 search_query = f"ytsearch{limit}:{query}"
+            if not query.startswith("http"):
+                 # Force search mode for text
+                 lim = limit if limit else 1
+                 search_query = f"ytsearch{lim}:{query}"
             
             # Usar buscador rapido (search_ytdl)
             data = await loop.run_in_executor(None, lambda: self.search_ytdl.extract_info(search_query, download=False))
@@ -101,6 +103,9 @@ class MusicCore:
             if 'entries' in data:
                 # Playlist o Search Result
                 entries = list(data['entries'])
+                if entries:
+                     logger.info(f"DEBUG SEARCH KEYS: {entries[0].keys()}")
+                     logger.info(f"DEBUG SEARCH FIRST: {entries[0]}")
                 for entry in entries:
                      # En modo flat, 'url' suele ser el ID o la url corta.
                      # Asegurar URL completa

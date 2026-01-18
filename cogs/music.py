@@ -169,6 +169,20 @@ class Music(commands.Cog):
             title = item[1]
             url = item[2]
             if len(item) > 3: duration = item[3]
+            
+            # --- LAZY RESOLUTION ---
+            # Si es un link de YouTube (watch), necesitamos resolverlo a stream
+            if "youtube.com/watch" in url or "youtu.be/" in url:
+                try:
+                    # logger.info(f"Resolving stream for {title}...")
+                    data = asyncio.run_coroutine_threadsafe(self.core.get_stream_url(url), self.bot.loop).result()
+                    if data and 'url' in data:
+                        url = data['url'] # Actualizar a Stream URL
+                        # Opcional: Actualizar thumbnail/duration si faltaban
+                except Exception as e:
+                    logger.error(f"Error resolving stream lazy: {e}")
+                    return None, title, 0, True
+
             try:
                 source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url, **ffmpeg_options), volume=vol)
             except Exception as e:
