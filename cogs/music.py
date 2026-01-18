@@ -937,100 +937,41 @@ class Music(commands.Cog):
                  )
             else:
                 # Modo AUTO (Historial Inteligente)
-                prompt_instruction = (
-                    f"Eres un DJ experto. "
-                    f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
-                    f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
-                    
-                    "Tu tarea es elegir la siguiente canción. "
-                    "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
-                    "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
-                    "Si no hay cambio claro, mantén la coherencia general. "
-                    
-                    "IMPORTANTE: NO REPITAS ninguna canción del historial."
-                )
-            
             # --- Detectar Inicio de Sesión ---
             is_start = False
             if ctx.guild.id in self.radio_session_start:
-                prompt_instruction += (
-                    " Esta es la PRIMERA canción de la sesión de DJ. "
-                    "En la intro, menciona que es el primer tema y di algo como 'Para empezar, no se duerman' o 'Arrancamos con esta'. ¡Genera HYPE!"
-                )
                 self.radio_session_start.remove(ctx.guild.id)
                 is_start = True
 
-            prompt = (
-                f"{prompt_instruction} "
-                "Además, genera una intro corta (máx 20 palabras) con personalidad de 'locutora Tsundere de anime'. "
-                "IMPORTANTE: "
-                "1. NO digas frases genéricas como 'aquí tienes tu canción' o 'hmph no me importa'. "
-                "2. Comenta algo ESPECÍFICO sobre la canción o artista que elegiste (un dato curioso, el vibe, o si es buena/mala). "
-                "3. Mantén el tono burlón/lindo, pero PRIORIZA hablar de la música. "
-                "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
-            )
-
-            genai.configure(api_key=config.GEMINI_KEY)
-            model = genai.GenerativeModel(config.AI_MODEL) 
+            # --- Generar Contenido con MusicCore ---
+            radio_data = await self.core.generate_radio_content(immediate_context, older_context, is_start)
             
-            resp = await model.generate_content_async(prompt)
-            text_full = resp.text.strip()
-            
-            # --- Parseo Robusto ---
-            song_name = "Daft Punk - One More Time" # Fallback
-            intro = "Kora, escucha esto."
-            
-            json_match = re.search(r"\{.*\}", text_full, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                try:
-                    data = json.loads(json_str)
-                    song_name = data.get("song", song_name)
-                    intro = data.get("intro", intro)
-                except: pass
-            else:
-                 clean_text = text_full.replace("```json", "").replace("```", "").strip()
-                 if clean_text.startswith("{"):
-                     try:
-                         data = json.loads(clean_text)
-                         song_name = data.get("song", song_name)
-                         intro = data.get("intro", intro)
-                     except: pass
-            
-            logger.info(f"📻 Radio Prepared: {song_name}")
-
             # --- Preparar Items para la Cola ---
             queue_items = []
             current_announcer_mode = self.announcer_mode.get(ctx.guild.id, config.ANNOUNCER_MODE)
             
-            # 1. Intro Item
-            if current_announcer_mode == "FULL":
-                # Generar TTS
-                filename = f"temp/radio_intro_{uuid.uuid4().hex}.mp3"
-                communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
-                await communicate.save(filename)
-                queue_items.append(("INTRO", filename, intro))
-                
-            elif current_announcer_mode == "TEXT":
-                queue_items.append(("TEXT_INTRO", intro))
+            song_name = radio_data.get('song_query', 'Unknown')
+            intro_text = radio_data.get('intro_text', '')
+            intro_audio = radio_data.get('intro_audio')
+            song_data = radio_data.get('song_data')
             
-            # 2. Song Item (Buscar URL con Core)
-            try:
-                data = await self.core.get_stream_url(song_name)
-                
-                if data:
-                    url = data['url']
-                    title = data['title']
-                    duration = data.get('duration', 0)
-                    
-                    # Append formatted song item
-                    queue_items.append((None, title, url, duration))
-                else:
-                    logger.error(f"Failed to find stream for radio: {song_name}")
-                
-            except Exception as e:
-                logger.error(f"Error fetching radio song {song_name}: {e}")
-                # Fallback? Maybe try another? For now just fail gracefully
+            logger.info(f"📻 Radio Prepared: {song_name}")
+
+            # 1. Intro Item
+            if current_announcer_mode == "FULL" and intro_audio:
+                queue_items.append(("INTRO", intro_audio, intro_text))
+            elif current_announcer_mode == "TEXT" and intro_text:
+                queue_items.append(("TEXT_INTRO", intro_text))
+            
+            # 2. Song Item
+            if song_data:
+                url = song_data['url']
+                title = song_data['title']
+                duration = song_data.get('duration', 0)
+                # Append formatted song item
+                queue_items.append((None, title, url, duration))
+            else:
+                logger.error(f"Failed to find stream for radio: {song_name}")
             
             # --- Añadir a la Cola ---
             if ctx.guild.id not in self.queues:

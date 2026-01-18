@@ -3,6 +3,11 @@ import config
 from utils.logger import setup_logger
 import asyncio
 import json
+import google.generativeai as genai
+import edge_tts
+import uuid
+import re
+
 
 logger = setup_logger("MusicCore")
 
@@ -135,3 +140,80 @@ class MusicCore:
         except Exception as e:
             logger.error(f"Stream Resolution Error: {e}")
             return None
+
+    async def generate_radio_content(self, recent_history, older_history, is_start=False):
+        """
+        Genera la siguiente canción y una intro usando Gemini + EdgeTTS.
+        Retorna:
+        {
+            'song_query': str,      # Lo que se buscará en YouTube
+            'intro_text': str,      # Texto de la intro
+            'intro_audio': str|None, # Ruta al archivo MP3 generado
+            'song_data': dict|None   # Datos resueltos de la canción (Stream URL)
+        }
+        """
+        # 1. Preparar Prompt
+        immediate_context = ", ".join(recent_history) if recent_history else "Ninguna (Empieza algo nuevo)"
+        older_context = ", ".join(older_history) if older_history else "Sin historial previo"
+        
+        prompt_instruction = (
+            f"Eres un DJ experto. "
+            f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
+            f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
+            
+            "Tu tarea es elegir la siguiente canción. "
+            "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
+            "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
+            "IMPORTANTE: NO REPITAS ninguna canción del historial reciente."
+        )
+
+        if is_start:
+             prompt_instruction += (
+                " Esta es la PRIMERA canción de la sesión. "
+                "Di algo como 'Arrancamos con esta'. ¡Genera HYPE!"
+            )
+
+        prompt = (
+            f"{prompt_instruction} "
+            "Además, genera una intro corta (máx 20 palabras) con personalidad de 'locutora Tsundere de anime'. "
+            "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
+        )
+        
+        # 2. Consultar a Gemini
+        song_name = "Daft Punk - One More Time"
+        intro = "Aquí tienes música."
+        
+        try:
+            genai.configure(api_key=config.GEMINI_KEY)
+            model = genai.GenerativeModel(config.AI_MODEL) 
+            resp = await model.generate_content_async(prompt)
+            text_full = resp.text.strip()
+            
+            # Parseo
+            json_match = re.search(r"\{.*\}", text_full, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group(0))
+                song_name = data.get("song", song_name)
+                intro = data.get("intro", intro)
+        except Exception as e:
+            logger.error(f"Gemini Error: {e}")
+            
+        # 3. Generar Audio TTS
+        intro_audio_path = None
+        if config.ANNOUNCER_MODE == "FULL":
+            try:
+                intro_audio_path = f"temp/radio_intro_{uuid.uuid4().hex}.mp3"
+                communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
+                await communicate.save(intro_audio_path)
+            except Exception as e:
+                logger.error(f"TTS Error: {e}")
+        
+        # 4. Resolver Canción
+        song_data = await self.get_stream_url(song_name)
+        
+        return {
+            'song_query': song_name,
+            'intro_text': intro,
+            'intro_audio': intro_audio_path,
+            'song_data': song_data
+        }

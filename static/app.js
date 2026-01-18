@@ -58,17 +58,29 @@ function updateQueueUI() {
     currentQueue.forEach((track, index) => {
         const el = document.createElement("div");
         el.className = "track-item";
+        if (track.is_intro) el.style.background = "rgba(255, 255, 255, 0.05)"; // Distinct background
         if (index === currentIndex) el.classList.add("playing"); // Add style for current song
 
-        const thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
+        let thumbStyle = '';
+        if (track.is_intro) {
+            // Use icon for intro
+            thumbStyle = '';
+        } else {
+            thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
+        }
+
         const statusIcon = index === currentIndex ? '<i class="fa-solid fa-volume-high" style="color:var(--primary)"></i>' : `<span style="color:#666">${index + 1}</span>`;
+
+        const imgContent = track.is_intro
+            ? '<div style="display:flex; justify-content:center; align-items:center; height:100%; color: var(--primary);"><i class="fa-solid fa-robot"></i></div>'
+            : '';
 
         el.innerHTML = `
             <div style="width: 30px; text-align: center;">${statusIcon}</div>
-            <div class="track-img" style="${thumbStyle}"></div>
+            <div class="track-img" style="${thumbStyle}">${imgContent}</div>
             <div class="track-info">
                 <h4>${track.title}</h4>
-                <p>En cola</p>
+                <p>${track.is_intro ? 'Anuncio' : 'En cola'}</p>
             </div>
              <button class="track-action" onclick="playQueueIndex(${index})"><i class="fa-solid fa-play"></i></button>
         `;
@@ -153,32 +165,51 @@ async function playTrack(track) {
 async function loadAndPlay(track) {
     if (!track) return;
 
-    // UI Update
+    // Update Player UI
     document.getElementById("np-title").innerText = track.title;
-    document.getElementById("np-artist").innerText = "Cargando...";
-    if (track.thumbnail) {
-        document.getElementById("np-img").src = track.thumbnail;
-    } else {
-        document.getElementById("np-img").src = "https://via.placeholder.com/50";
-    }
-    playBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    document.getElementById("np-artist").innerText = track.is_intro ? "Asuka (AI DJ)" : "Cargando...";
+    document.getElementById("np-img").src = track.thumbnail || "https://dummyimage.com/150x150/000/fff&text=Asuka";
+
+    // Highlight in Queue
+    updateQueueUI();
 
     try {
-        // Resolve URL if needed
-        // Always force resolve to be safe/fresh
-        const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
-        const data = await res.json();
+        let streamUrl = track.url; // Try using what we have (e.g., Radio Intro)
 
-        audioPlayer.src = data.url;
+        // Only resolve if we don't have a direct URL (or if it's not a local temp file)
+        // Adjust logic: If we resolved it previously, we keep it. If it's a search result, it has a proxy URL or needs resolution.
+        // Search results usually have 'url' as ID or original link. We need a playable stream.
+        // Radio Intros have absolute/relative path.
+
+        // Simple check: If it looks like a YouTube ID or query, resolve it. If it starts with /temp or http (and is audio), use it.
+        // But wait, search results also have 'url'. 
+        // Let's rely on a flag or specific check.
+
+        if (!track.is_intro && (!streamUrl || !streamUrl.startsWith("/temp"))) {
+            const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
+            if (!res.ok) throw new Error("Resolve failed");
+            const data = await res.json();
+            streamUrl = data.url;
+
+            // Update track info with full details
+            track.url = streamUrl;
+            track.thumbnail = data.thumbnail;
+            if (data.thumbnail) document.getElementById("np-img").src = data.thumbnail;
+        }
+
+        audioPlayer.src = streamUrl;
         audioPlayer.play();
-
-        document.getElementById("np-artist").innerText = "Reproduciendo";
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
 
     } catch (e) {
-        console.error("Error playing:", e);
-        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-        // Try next if error?
+        console.error("Playback error:", e);
+        // Skip on error
+        alert("Error reproduciendo: " + track.title);
+        // Force Next
+        if (currentIndex < currentQueue.length - 1) {
+            currentIndex++;
+            loadAndPlay(currentQueue[currentIndex]);
+        }
     }
 }
 
@@ -208,6 +239,85 @@ document.getElementById("btn-next").onclick = () => {
     }
 };
 
+// --- Radio Mode ---
+let isRadioMode = false;
+const radioBtn = document.getElementById("btn-radio-mode");
+
+if (radioBtn) {
+    radioBtn.onclick = () => {
+        isRadioMode = !isRadioMode;
+        if (isRadioMode) {
+            // Active Style
+            radioBtn.style.color = "var(--primary)";
+
+            // If nothing is playing, kickstart it!
+            if (currentQueue.length === 0 || currentIndex === -1) {
+                fetchNextRadioSong(true);
+            }
+        } else {
+            // Inactive Style
+            radioBtn.style.color = "inherit"; // Or white
+        }
+    };
+}
+
+async function fetchNextRadioSong(isStart = false) {
+    try {
+        // Collect history for context
+        const history = currentQueue.slice(-5).map(t => t.title);
+
+        const res = await fetch(`${API_URL}/radio/next`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ history: history, is_start: isStart })
+        });
+
+        if (!res.ok) throw new Error("Radio API failed");
+
+        const data = await res.json();
+        const itemsToAdd = [];
+
+        // 1. Intro (Optional)
+        if (data.intro_audio_url) {
+            itemsToAdd.push({
+                title: "🎙️ Asuka",
+                url: data.intro_audio_url,
+                thumbnail: null, // Use UI logic
+                duration: 5, // Estimate
+                is_intro: true
+            });
+        }
+
+        // 2. Song
+        if (data.song_data) {
+            itemsToAdd.push({
+                title: data.song_data.title,
+                url: data.song_data.url,
+                thumbnail: data.song_data.thumbnail,
+                duration: data.song_data.duration
+            });
+        }
+
+        // Add to queue
+        if (itemsToAdd.length > 0) {
+            itemsToAdd.forEach(item => currentQueue.push(item));
+            updateQueueUI();
+
+            // If stopped, play immediately
+            if (audioPlayer.paused && (currentIndex === -1 || currentIndex === currentQueue.length - itemsToAdd.length - 1)) {
+                if (currentIndex === -1) currentIndex = 0;
+                else currentIndex++;
+
+                loadAndPlay(currentQueue[currentIndex]);
+            }
+        }
+
+    } catch (e) {
+        console.error("Radio Error:", e);
+        // Retry?
+    }
+}
+
 // Auto-Next
 audioPlayer.onended = () => {
     if (currentIndex < currentQueue.length - 1) {
@@ -215,8 +325,14 @@ audioPlayer.onended = () => {
         loadAndPlay(currentQueue[currentIndex]);
         updateQueueUI();
     } else {
-        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-        document.getElementById("np-artist").innerText = "Fin de la cola";
+        // Queue finished
+        if (isRadioMode) {
+            document.getElementById("np-artist").innerText = "Sintonizando Radio IA...";
+            fetchNextRadioSong();
+        } else {
+            playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            document.getElementById("np-artist").innerText = "Fin de la cola";
+        }
     }
 };
 

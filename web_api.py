@@ -74,6 +74,33 @@ def get_playlist_content(name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- Radio Endpoint ---
+class RadioContext(BaseModel):
+    history: list[str] = []
+    is_start: bool = False
+
+@app.post("/api/radio/next")
+async def next_radio_song(ctx: RadioContext):
+    import os
+    try:
+        # Split history into recent (5) and older
+        recent = ctx.history[-5:] if ctx.history else []
+        older = ctx.history[:-5] if len(ctx.history) > 5 else []
+        
+        data = await core.generate_radio_content(recent, older, is_start=ctx.is_start)
+        
+        # Convert absolute path to URL for audio
+        if data['intro_audio']:
+             # Assuming server runs on root or we just return relative path
+             # Client will prepend host
+             filename = os.path.basename(data['intro_audio'])
+             data['intro_audio_url'] = f"/temp/{filename}"
+        
+        return data
+    except Exception as e:
+        logger.error(f"Radio API Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/playlists")
 def save_playlist(playlist: PlaylistCreate):
     import json
@@ -99,10 +126,14 @@ def delete_playlist(name: str):
          raise HTTPException(status_code=500, detail=str(e))
 
 # Serve Static Files (Frontend)
+# Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
 import os
+if not os.path.exists("temp"):
+    os.makedirs("temp")
+app.mount("/temp", StaticFiles(directory="temp"), name="temp")
+
 if not os.path.exists("static"):
     os.makedirs("static")
-
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # Startup Event
