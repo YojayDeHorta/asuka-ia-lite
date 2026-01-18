@@ -7,7 +7,7 @@
     <title>Asuka Web 🎵</title>
     <link rel="icon" type="image/png" href="asuka.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=8">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -45,6 +45,10 @@
                     <i class="fa-solid fa-search"></i>
                     <input type="text" id="global-search" placeholder="¿Qué quieres escuchar hoy?">
                 </div>
+                <button id="btn-settings" onclick="openSettingsModal()"
+                    style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer; padding:10px;">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
             </header>
 
             <div id="content-area">
@@ -200,6 +204,46 @@
     </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="text-align: left;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0;">⚙️ Configuración</h2>
+                <button onclick="closeSettingsModal()"
+                    style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer;"><i
+                        class="fa-solid fa-times"></i></button>
+            </div>
+
+            <!-- User ID -->
+            <div style="margin-bottom: 25px;">
+                <label style="display:block; color:#888; margin-bottom:5px; font-size:0.9rem;">Tu ID de Usuario</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="settings-uid" readonly value="..."
+                        style="flex:1; padding:10px; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff;">
+                    <button class="nav-btn" onclick="copyUserID()" title="Copiar"><i
+                            class="fa-solid fa-copy"></i></button>
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <div
+                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; padding:10px; background:rgba(255,255,255,0.05); border-radius:10px;">
+                <div>
+                    <h4 style="margin:0;">Comentarios de Asuka</h4>
+                    <p style="margin:0; font-size:0.8rem; color:#888;">Escuchar intro antes de cada canción</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setting-intros" checked onchange="saveSettings()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div style="text-align:center; margin-top:30px;">
+                <p style="font-size:0.8rem; color:#666;">Asuka Lite v1.0</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Radio Modal -->
     <div id="custom-radio-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content glass">
@@ -215,7 +259,7 @@
     </div>
 
     <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=20"></script>
 </body>
 
 </html>

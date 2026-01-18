@@ -108,6 +108,7 @@ class RadioContext(BaseModel):
     history: list[str] = []
     is_start: bool = False
     mood: str | None = None
+    enable_intros: bool = True
 
 @app.post("/api/radio/next")
 async def next_radio_song(ctx: RadioContext, request: Request):
@@ -129,7 +130,7 @@ async def next_radio_song(ctx: RadioContext, request: Request):
              logger.error(f"Failed to fetch DB history: {db_e}")
              older = ctx.history[:-5] if len(ctx.history) > 5 else []
 
-        data = await core.generate_radio_content(recent, older, is_start=ctx.is_start, mood=ctx.mood)
+        data = await core.generate_radio_content(recent, older, is_start=ctx.is_start, mood=ctx.mood, enable_intros=ctx.enable_intros)
         
         # Convert absolute path to URL for audio
         if data['intro_audio']:

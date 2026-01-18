@@ -157,10 +157,11 @@ class MusicCore:
             'song_data': dict|None   # Datos resueltos de la canción (Stream URL)
         }
         """
-    async def generate_radio_content(self, recent_history, older_history, is_start=False, mood=None):
+    async def generate_radio_content(self, recent_history, older_history, is_start=False, mood=None, enable_intros=True):
         """
         Genera la siguiente canción y una intro usando Gemini + EdgeTTS.
         mood: str|None - Si se especifica (ej: "Rock", "Lofi"), fuerza ese estilo.
+        enable_intros: bool - Si es False, no genera intro (audio/texto vacío).
         """
 
         # 1. Preparar Prompt
@@ -224,20 +225,29 @@ class MusicCore:
             
         # 3. Generar Audio TTS
         intro_audio_path = None
-        if config.ANNOUNCER_MODE == "FULL":
+        
+        if enable_intros and config.ANNOUNCER_MODE == "FULL":
             try:
                 intro_audio_path = f"temp/radio_intro_{uuid.uuid4().hex}.mp3"
                 communicate = edge_tts.Communicate(intro, config.TTS_VOICE, rate=config.TTS_RATE, pitch=config.TTS_PITCH)
                 await communicate.save(intro_audio_path)
             except Exception as e:
                 logger.error(f"TTS Error: {e}")
+                intro_audio_path = None # Safe fallback
+        else:
+            # If intros disabled, clear intro text too so frontend doesn't show "Asuka AI" metadata for missing clip?
+            # Actually, `intro_audio` being None is enough for frontend to skip playback.
+            # But the user might want to still see the text? Or skip entirely?
+            # User said "deshabilitar a los comentarios... escuchar el bot antes".
+            # So skipping audio is the key.
+            pass
         
         # 4. Resolver Canción
         song_data = await self.get_stream_url(song_name)
         
         return {
             'song_query': song_name,
-            'intro_text': intro,
+            'intro_text': intro if enable_intros else "", # Hide text if disabled
             'intro_audio': intro_audio_path,
             'song_data': song_data
         }

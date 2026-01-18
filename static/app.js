@@ -420,13 +420,17 @@ async function fetchNextRadioSong(isStart = false) {
         // Collect history for context
         const history = currentQueue.slice(-5).map(t => t.title);
 
+        const savedIntros = localStorage.getItem("asuka_enable_intros");
+        const enableIntros = (savedIntros === null || savedIntros === "true");
+
         const res = await authenticatedFetch(`${API_URL}/radio/next`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 history: history,
                 is_start: isStart,
-                mood: currentRadioMood
+                mood: currentRadioMood,
+                enable_intros: enableIntros
             })
         });
 
@@ -707,3 +711,37 @@ function submitCustomRadio() {
 document.getElementById("custom-mood-input")?.addEventListener("keypress", (e) => {
     if (e.key === "Enter") submitCustomRadio();
 });
+
+// --- Settings Logic ---
+function openSettingsModal() {
+    const modal = document.getElementById("settings-modal");
+    if (modal) {
+        modal.style.display = "flex";
+        // Load Values
+        document.getElementById("settings-uid").value = ASUKA_UID;
+        const savedIntros = localStorage.getItem("asuka_enable_intros");
+        document.getElementById("setting-intros").checked = (savedIntros === null || savedIntros === "true");
+    }
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById("settings-modal");
+    if (modal) modal.style.display = "none";
+}
+
+function saveSettings() {
+    const intros = document.getElementById("setting-intros").checked;
+    localStorage.setItem("asuka_enable_intros", intros);
+    // Reload radio logic if needed, but for now just saving for next fetch is enough.
+}
+
+function copyUserID() {
+    const uid = document.getElementById("settings-uid");
+    uid.select();
+    navigator.clipboard.writeText(uid.value).then(() => {
+        const btn = document.querySelector("#settings-modal .nav-btn");
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+        setTimeout(() => btn.innerHTML = original, 1500);
+    });
+}
