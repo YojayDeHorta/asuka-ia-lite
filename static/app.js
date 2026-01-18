@@ -417,8 +417,11 @@ let currentRadioMood = null;
 
 async function fetchNextRadioSong(isStart = false) {
     try {
-        // Collect history for context
-        const history = currentQueue.slice(-5).map(t => t.title);
+        // Collect history for context (Filter out intros)
+        const history = currentQueue
+            .filter(t => !t.is_intro && t.title !== "🎙️ Asuka")
+            .slice(-5)
+            .map(t => t.title);
 
         const savedIntros = localStorage.getItem("asuka_enable_intros");
         const enableIntros = (savedIntros === null || savedIntros === "true");
