@@ -813,4 +813,95 @@ function setTheme(color) {
 // Call on startup
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
+    checkAuthStatus();
 });
+
+// --- AUTH SYSTEM ---
+let currentAuthTab = 'login';
+
+function openAuthModal() {
+    document.getElementById("auth-modal").style.display = "flex";
+    switchAuthTab('login');
+}
+
+document.getElementById("auth-modal").addEventListener("click", (e) => {
+    if (e.target.id === "auth-modal") document.getElementById("auth-modal").style.display = "none";
+});
+
+function switchAuthTab(tab) {
+    currentAuthTab = tab;
+    document.getElementById("tab-login").className = `tab-btn ${tab === 'login' ? 'active' : ''}`;
+    document.getElementById("tab-register").className = `tab-btn ${tab === 'register' ? 'active' : ''}`;
+    document.querySelector("#auth-form button").innerText = (tab === 'login') ? "Entrar" : "Crear Cuenta";
+    document.getElementById("auth-error").style.display = "none";
+}
+
+async function handleAuth(e) {
+    e.preventDefault();
+    const user = document.getElementById("auth-user").value;
+    const pass = document.getElementById("auth-pass").value;
+    const errorMsg = document.getElementById("auth-error");
+
+    const endpoint = (currentAuthTab === 'login') ? '/auth/login' : '/auth/register';
+
+    try {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || "Error desconocido");
+
+        // Success
+        loginUser(data);
+        document.getElementById("auth-modal").style.display = "none";
+        document.getElementById("auth-form").reset();
+
+    } catch (err) {
+        errorMsg.innerText = err.message;
+        errorMsg.style.display = "block";
+    }
+}
+
+function loginUser(userData) {
+    // Save to LocalStorage
+    localStorage.setItem("asuka_auth_user", JSON.stringify(userData));
+    // Update Global UID variable
+    ASUKA_UID = userData.id;
+    // UI Update
+    updateAuthUI(userData);
+}
+
+function logout() {
+    localStorage.removeItem("asuka_auth_user");
+    // Generate random guest ID again? Or reload?
+    location.reload();
+}
+
+function checkAuthStatus() {
+    const saved = localStorage.getItem("asuka_auth_user");
+    if (saved) {
+        try {
+            const user = JSON.parse(saved);
+            ASUKA_UID = user.id;
+            updateAuthUI(user);
+        } catch (e) {
+            console.error("Auth Error", e);
+        }
+    }
+}
+
+function updateAuthUI(user) {
+    // Hide Login Btn, Show User Info
+    document.getElementById("btn-login").style.display = "none";
+    document.getElementById("user-info-area").style.display = "block";
+
+    document.getElementById("user-display-name").innerText = user.username;
+
+    // Also update Settings UID display
+    const settingsUid = document.getElementById("settings-uid");
+    if (settingsUid) settingsUid.value = user.id;
+}

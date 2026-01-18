@@ -209,6 +209,47 @@ def check_favorite(q: str, request: Request):
         return {"is_liked": is_liked}
     except Exception as e:
         return {"is_liked": False}
+
+# --- AUTH SYSTEM ---
+import hashlib
+
+class UserAuth(BaseModel):
+    username: str
+    password: str
+
+def hash_pass(password: str) -> str:
+    # "Lite" Hashing: SHA256 + Static Salt (Good enough for single user/lite usage)
+    salt = "asuka-lite-salt-v1"
+    return hashlib.sha256((password + salt).encode()).hexdigest()
+
+@app.post("/api/auth/register")
+async def register(user: UserAuth):
+    if len(user.password) < 4:
+        raise HTTPException(status_code=400, detail="Password too short (min 4 chars)")
+    if len(user.username) < 3:
+        raise HTTPException(status_code=400, detail="Username too short (min 3 chars)")
+
+    hashed = hash_pass(user.password)
+    user_id = database.create_user(user.username, hashed)
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    return {"id": user_id, "username": user.username}
+
+@app.post("/api/auth/login")
+async def login(user: UserAuth):
+    hashed = hash_pass(user.password)
+    data = database.verify_user_login(user.username)
+    
+    if not data:
+         raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    db_id, db_hash = data
+    if db_hash != hashed:
+         raise HTTPException(status_code=401, detail="Invalid username or password")
+         
+    return {"id": db_id, "username": user.username}
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
 import os

@@ -45,6 +45,9 @@ def ensure_db():
             c.execute('''CREATE TABLE IF NOT EXISTS favorites
                          (user_id INTEGER, title TEXT, added_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
                           UNIQUE(user_id, title))''') # Unique constraint prevents duplicates
+            # Ensure users table
+            c.execute('''CREATE TABLE IF NOT EXISTS users
+                         (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
             
             # Migration check
             try:
@@ -209,3 +212,29 @@ def is_favorite(user_id, title):
     except Exception as e:
         logger.error(f"Error checking favorite: {e}")
         return False
+
+
+# --- User Management ---
+def create_user(username, password_hash):
+    """Crea un usuario nuevo. Retorna ID o None si falla/existe."""
+    try:
+        with DBConnection() as c:
+            c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+            # Get ID
+            c.execute("SELECT id FROM users WHERE username = ?", (username,))
+            return c.fetchone()[0]
+    except sqlite3.IntegrityError:
+        return None # Duplicate
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        return None
+
+def verify_user_login(username):
+    """Retorna (id, password_hash) si existe, o None."""
+    try:
+        with DBConnection() as c:
+            c.execute("SELECT id, password_hash FROM users WHERE username = ?", (username,))
+            return c.fetchone()
+    except Exception as e:
+        logger.error(f"Error checking user: {e}")
+        return None
