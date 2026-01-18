@@ -677,3 +677,33 @@ async function loadFavorites() {
         container.innerHTML = '<p style="color:red">Error cargando favoritos.</p>';
     }
 }
+
+// --- Custom Radio Modal Logic ---
+function openCustomRadioModal() {
+    const modal = document.getElementById("custom-radio-modal");
+    const input = document.getElementById("custom-mood-input");
+    if (modal) {
+        modal.style.display = "flex";
+        input.value = "";
+        setTimeout(() => input.focus(), 100);
+    }
+}
+
+function closeCustomRadioModal() {
+    const modal = document.getElementById("custom-radio-modal");
+    if (modal) modal.style.display = "none";
+}
+
+function submitCustomRadio() {
+    const input = document.getElementById("custom-mood-input");
+    const val = input.value.trim();
+    if (val) {
+        closeCustomRadioModal();
+        startRadio(val);
+    }
+}
+
+// Enter Key in Modal
+document.getElementById("custom-mood-input")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") submitCustomRadio();
+});
