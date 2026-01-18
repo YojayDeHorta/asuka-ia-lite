@@ -307,9 +307,19 @@ async function prefetchNext() {
 
 // Controls
 playBtn.onclick = () => {
-    if (!audioPlayer.src) return;
+    if (!audioPlayer.src) {
+        showToast("No hay nada para reproducir", "info");
+        return;
+    }
     if (audioPlayer.paused) {
-        audioPlayer.play();
+        audioPlayer.play().catch(e => {
+            console.error("Play error:", e);
+            if (e.name === "NotSupportedError") {
+                showToast("Error: Fuente de audio no válida o expirada", "error");
+            } else {
+                showToast("Error al reproducir", "error");
+            }
+        });
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
     } else {
         audioPlayer.pause();
@@ -857,9 +867,10 @@ function loginUser(userData) {
 }
 
 function logout() {
-    localStorage.removeItem("asuka_auth_user");
-    // Generate random guest ID again? Or reload?
-    location.reload();
+    showConfirm("¿Cerrar sesión?", () => {
+        localStorage.removeItem("asuka_auth_user");
+        location.reload();
+    });
 }
 
 function checkAuthStatus() {
@@ -889,11 +900,16 @@ function updateAuthUI(user) {
 
 // --- QUEUE PANEL ---
 function toggleQueue() {
+    console.log("Toggle Queue clicked");
     const panel = document.getElementById("queue-panel");
 
-    if (!panel) return;
+    if (!panel) {
+        console.error("Queue panel not found");
+        return;
+    }
 
     panel.classList.toggle("active");
+    console.log("Panel active state:", panel.classList.contains("active"));
 
     if (panel.classList.contains("active")) {
         renderQueue();
@@ -1022,15 +1038,46 @@ function removeQueueItem(index) {
     renderQueue();
 }
 
+// --- Confirmation Helper ---
+function showConfirm(message, onConfirm) {
+    const modal = document.getElementById("confirm-modal");
+    const msgEl = document.getElementById("confirm-msg");
+    const okBtn = document.getElementById("btn-confirm-ok");
+    const cancelBtn = document.getElementById("btn-confirm-cancel");
+
+    if (!modal) {
+        if (confirm(message)) onConfirm();
+        return;
+    }
+
+    msgEl.innerText = message;
+    modal.style.display = "flex";
+    setTimeout(() => modal.classList.add("active"), 10);
+
+    const close = () => {
+        modal.classList.remove("active");
+        setTimeout(() => modal.style.display = "none", 300);
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+    };
+
+    okBtn.onclick = () => {
+        onConfirm();
+        close();
+    };
+    cancelBtn.onclick = close;
+}
+
 function clearQueue() {
-    if (confirm("¿Limpiar toda la cola de reproducción?")) {
+    showConfirm("¿Limpiar toda la cola de reproducción?", () => {
         currentQueue = [];
         currentIndex = -1;
         audioPlayer.pause();
+        audioPlayer.src = ""; // Reset Source
         renderQueue();
         updateNowPlaying("Asuka Web", "Busca música para empezar");
         showToast("Cola de reproducción limpiada", "info");
-    }
+    });
 }
 
 // --- Toast Notifications ---
@@ -1057,4 +1104,18 @@ function showToast(message, type = 'info', duration = 3000) {
         });
     }, duration);
 }
+
+// --- Global Click Listener (Close Queue on Outside Click) ---
+document.addEventListener('click', (e) => {
+    const queuePanel = document.getElementById('queue-panel');
+    const queueBtn = document.getElementById('btn-queue');
+
+    // If panel is active
+    if (queuePanel && queuePanel.classList.contains('active')) {
+        // If click is NOT on the panel AND NOT on the button (or its children)
+        if (!queuePanel.contains(e.target) && !queueBtn.contains(e.target)) {
+            toggleQueue();
+        }
+    }
+});
 

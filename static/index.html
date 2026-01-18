@@ -227,11 +227,9 @@
             </div>
 
             <div class="volume-controls">
-                <button id="btn-queue" onclick="toggleQueue()" title="Cola de Reproducción"
-                    style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem; margin-right:15px;">
-                    <i class="fa-solid fa-list-music"></i>
-                    <span id="queue-count"
-                        style="font-size:0.7rem; position:absolute; top:-5px; right:-5px; background:var(--primary); border-radius:50%; padding:2px 5px; min-width:18px; text-align:center; display:none;">0</span>
+                <button id="btn-queue" onclick="toggleQueue()" class="btn-queue-toggle" title="Cola de Reproducción">
+                    <i class="fa-solid fa-list"></i>
+                    <span id="queue-count" class="queue-count-badge">0</span>
                 </button>
 
                 <div class="vol-wrapper" style="display: flex; align-items: center; gap: 10px;">
@@ -367,8 +365,20 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="confirm-overlay">
+        <div class="confirm-box">
+            <i class="fa-solid fa-circle-question confirm-icon"></i>
+            <p id="confirm-msg" class="confirm-msg">¿Estás seguro?</p>
+            <div class="confirm-actions">
+                <button id="btn-confirm-cancel" class="btn-confirm-action btn-confirm-cancel">Cancelar</button>
+                <button id="btn-confirm-ok" class="btn-confirm-action btn-confirm-ok">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=53"></script>
 </body>
 
 </html>

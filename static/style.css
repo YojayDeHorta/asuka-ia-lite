@@ -15,6 +15,17 @@
     font-family: 'Outfit', sans-serif;
 }
 
+/* Micro-animations */
+button,
+.nav-links a {
+    transition: transform 0.1s ease, background 0.2s, color 0.2s;
+}
+
+button:active,
+.nav-links a:active {
+    transform: scale(0.95);
+}
+
 body {
     background-color: var(--bg-dark);
     color: var(--text-main);
@@ -219,6 +230,14 @@ header {
     align-items: center;
     gap: 5px;
     width: 40%;
+}
+
+.volume-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 30%;
+    gap: 15px;
 }
 
 .control-buttons {
@@ -619,6 +638,41 @@ input:checked+.slider:before {
     box-shadow: 0 8px 25px rgba(255, 0, 85, 0.4);
 }
 
+.btn-queue-toggle {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 1.2rem;
+    margin-right: 15px;
+    position: relative;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.btn-queue-toggle:hover {
+    transform: scale(1.1);
+    color: var(--primary);
+}
+
+.queue-count-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--primary);
+    border-radius: 50%;
+    padding: 2px 5px;
+    min-width: 18px;
+    text-align: center;
+    font-size: 0.7rem;
+    display: none;
+}
+
 /* --- Queue Panel --- */
 .queue-panel {
     position: fixed;
@@ -630,7 +684,7 @@ input:checked+.slider:before {
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
     transition: right 0.3s ease;
-    z-index: 1001;
+    z-index: 5000;
     display: flex;
     flex-direction: column;
 }
@@ -806,21 +860,134 @@ input:checked+.slider:before {
     font-size: 1.2rem;
 }
 
-.toast.success { border-left: 3px solid #2ecc71; }
-.toast.success i { color: #2ecc71; }
+.toast.success {
+    border-left: 3px solid #2ecc71;
+}
 
-.toast.error { border-left: 3px solid #ff4757; }
-.toast.error i { color: #ff4757; }
+.toast.success i {
+    color: #2ecc71;
+}
 
-.toast.info { border-left: 3px solid var(--primary); }
-.toast.info i { color: var(--primary); }
+.toast.error {
+    border-left: 3px solid #ff4757;
+}
+
+.toast.error i {
+    color: #ff4757;
+}
+
+.toast.info {
+    border-left: 3px solid var(--primary);
+}
+
+.toast.info i {
+    color: var(--primary);
+}
 
 @keyframes toast-in {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 @keyframes toast-out {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* --- Confirmation Modal --- */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.confirm-overlay.active {
+    opacity: 1;
+}
+
+.confirm-box {
+    background: rgba(30, 30, 36, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    max-width: 350px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.confirm-overlay.active .confirm-box {
+    transform: scale(1);
+}
+
+.confirm-icon {
+    font-size: 3rem;
+    color: var(--primary);
+    margin-bottom: 15px;
+}
+
+.confirm-msg {
+    margin-bottom: 25px;
+    font-size: 1.1rem;
+    color: #eee;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.btn-confirm-action {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-confirm-cancel {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ccc;
+}
+
+.btn-confirm-cancel:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-confirm-ok {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
+}
+
+.btn-confirm-ok:hover {
+    filter: brightness(1.2);
 }
