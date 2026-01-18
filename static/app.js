@@ -303,10 +303,41 @@ if (radioBtn) {
             }
         } else {
             // Inactive Style
-            radioBtn.style.color = "inherit"; // Or white
+            radioBtn.style.color = "inherit";
+            currentRadioMood = null; // Reset mood when turned off
         }
     };
 }
+
+// Function to start specific radio mode from Cards
+function startRadio(mood) {
+    console.log("Starting Radio Mode:", mood);
+
+    // 1. Enable Radio Mode
+    isRadioMode = true;
+    currentRadioMood = mood;
+    if (radioBtn) radioBtn.style.color = "var(--primary)";
+
+    // 2. Clear Queue? Use User preference?
+    // For now, let's clear to make it a fresh session
+    currentQueue = [];
+    currentIndex = -1;
+    if (audioPlayer) {
+        audioPlayer.pause();
+        audioPlayer.src = "";
+    }
+    updateQueueUI(); // Clear UI
+
+    // 3. Start
+    fetchNextRadioSong(true);
+
+    // 4. Feedback
+    document.getElementById("np-title").innerText = `Modo ${mood}`;
+    document.getElementById("np-artist").innerText = "Sintonizando...";
+}
+
+// Global Radio Mood
+let currentRadioMood = null;
 
 async function fetchNextRadioSong(isStart = false) {
     try {
@@ -316,7 +347,11 @@ async function fetchNextRadioSong(isStart = false) {
         const res = await fetch(`${API_URL}/radio/next`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ history: history, is_start: isStart })
+            body: JSON.stringify({
+                history: history,
+                is_start: isStart,
+                mood: currentRadioMood
+            })
         });
 
         if (!res.ok) throw new Error("Radio API failed");

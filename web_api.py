@@ -87,7 +87,7 @@ def get_playlist_content(name: str):
 class RadioContext(BaseModel):
     history: list[str] = []
     is_start: bool = False
-
+    mood: str | None = None
 
 @app.post("/api/radio/next")
 async def next_radio_song(ctx: RadioContext):
@@ -111,7 +111,7 @@ async def next_radio_song(ctx: RadioContext):
              # Fallback to whatever client sent
              older = ctx.history[:-5] if len(ctx.history) > 5 else []
 
-        data = await core.generate_radio_content(recent, older, is_start=ctx.is_start)
+        data = await core.generate_radio_content(recent, older, is_start=ctx.is_start, mood=ctx.mood)
         
         # Convert absolute path to URL for audio
         if data['intro_audio']:

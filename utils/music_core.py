@@ -157,25 +157,44 @@ class MusicCore:
             'song_data': dict|None   # Datos resueltos de la canción (Stream URL)
         }
         """
+    async def generate_radio_content(self, recent_history, older_history, is_start=False, mood=None):
+        """
+        Genera la siguiente canción y una intro usando Gemini + EdgeTTS.
+        mood: str|None - Si se especifica (ej: "Rock", "Lofi"), fuerza ese estilo.
+        """
+
         # 1. Preparar Prompt
         immediate_context = ", ".join(recent_history) if recent_history else "Ninguna (Empieza algo nuevo)"
         older_context = ", ".join(older_history) if older_history else "Sin historial previo"
         
-        prompt_instruction = (
-            f"Eres un DJ experto. "
-            f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
-            f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
-            
-            "Tu tarea es elegir la siguiente canción. "
-            "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
-            "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
-            "IMPORTANTE: NO REPITAS ninguna canción del historial reciente."
-        )
+        prompt_instruction = ""
+        
+        if mood:
+            # MOOD OVERRIDE
+            prompt_instruction = (
+                f"Eres un DJ experto. El usuario ha pedido una sesión de estilo: **{mood}**.\n"
+                f"IGNORA cualquier historial previo que no encaje con {mood}. \n"
+                f"Tu única misión es poner la mejor canción posible de género {mood}.\n"
+                f"TENDENCIA RECIENTE: [{immediate_context}] (Úsalas solo para no repetir)."
+            )
+        else:
+            # STANDARD SMART DJ
+            prompt_instruction = (
+                f"Eres un DJ experto. "
+                f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
+                f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
+                
+                "Tu tarea es elegir la siguiente canción. "
+                "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
+                "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
+                "IMPORTANTE: NO REPITAS ninguna canción del historial reciente."
+            )
 
         if is_start:
+             start_msg = "Arrancamos con esta" if not mood else f"Iniciando modo {mood}"
              prompt_instruction += (
-                " Esta es la PRIMERA canción de la sesión. "
-                "Di algo como 'Arrancamos con esta'. ¡Genera HYPE!"
+                f" Esta es la PRIMERA canción de la sesión. "
+                f"Di algo como '{start_msg}'. ¡Genera HYPE!"
             )
 
         prompt = (

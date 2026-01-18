@@ -50,28 +50,69 @@
                 <div id="home-view" class="view active">
                     <h1>Buenos días ☀️</h1>
                     <div class="cards-grid" id="recommendations-grid">
-                        <!-- Placeholders -->
-                        <div class="card glass">
-                            <div class="card-img" style="background-color: #ff6b6b">🎵</div>
+                        <!-- Interactive Cards -->
+                        <div class="card glass" onclick="startRadio('Tendencias')">
+                            <div class="card-img" style="background-color: #ff6b6b">🔥</div>
                             <h4>Tendencias</h4>
                             <p>Lo más escuchado</p>
                         </div>
-                        <div class="card glass">
+                        <div class="card glass" onclick="startRadio('Rock')">
                             <div class="card-img" style="background-color: #4ecdc4">🎸</div>
                             <h4>Rock Mix</h4>
-                            <p>Mix de energía</p>
+                            <p>Energía pura</p>
                         </div>
-                        <div class="card glass">
-                            <div class="card-img" style="background-color: #ffe66d">🧘</div>
-                            <h4>Chill Vibes</h4>
-                            <p>Para relajarse</p>
+                        <div class="card glass" onclick="startRadio('Lofi')">
+                            <div class="card-img" style="background-color: #ffe66d">☕</div>
+                            <h4>Lofi Study</h4>
+                            <p>Relajación y estudio</p>
                         </div>
-                        <div class="card glass">
-                            <div class="card-img" style="background-color: #ff0055">🤖</div>
-                            <h4>Radio IA</h4>
-                            <p>¡Hola Humano!</p>
+                        <div class="card glass" onclick="startRadio('Gaming')">
+                            <div class="card-img" style="background-color: #a35ddf">🎮</div>
+                            <h4>Gaming OST</h4>
+                            <p>Música épica</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Night Drive')">
+                            <div class="card-img" style="background-color: #2c3e50">🌃</div>
+                            <h4>Night Drive</h4>
+                            <p>Synthwave & Chill</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('J-Pop')">
+                            <div class="card-img" style="background-color: #ff0055">🌸</div>
+                            <h4>J-Pop</h4>
+                            <p>Anime Vibes</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Vallenato')">
+                            <div class="card-img" style="background-color: #f1c40f">🪗</div>
+                            <h4>Vallenato</h4>
+                            <p>Sentimiento puro</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('City Pop')">
+                            <div class="card-img" style="background-color: #54a0ff">🏙️</div>
+                            <h4>City Pop</h4>
+                            <p>Japan 80s Vibe</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Electronica')">
+                            <div class="card-img" style="background-color: #00d2d3">⚡</div>
+                            <h4>Electrónica</h4>
+                            <p>Beats & Bass</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Salsa')">
+                            <div class="card-img" style="background-color: #ff4757">💃</div>
+                            <h4>Salsa</h4>
+                            <p>Para bailar</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Metal')">
+                            <div class="card-img" style="background-color: #2f3542">🤘</div>
+                            <h4>Metal</h4>
+                            <p>Intensidad máxima</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Piano')">
+                            <div class="card-img" style="background-color: #576574">🎹</div>
+                            <h4>Piano</h4>
+                            <p>Relax & Focus</p>
                         </div>
                     </div>
+
                 </div>
 
                 <div id="results-view" class="view" style="display: none;">
