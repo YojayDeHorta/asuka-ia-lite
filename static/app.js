@@ -234,21 +234,29 @@ async function loadAndPlay(track) {
             const res = await authenticatedFetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
             if (!res.ok) throw new Error("Resolve failed");
             const data = await res.json();
-            streamUrl = data.url;
+            if (data.status === "error") throw new Error(data.message);
 
-            // Update track info with full details
-            track.url = streamUrl;
+            const resolvedStreamUrl = API_URL + data.stream_url;
+            console.log("Playing:", resolvedStreamUrl);
+
+            // Update Track Info
+            track.url = resolvedStreamUrl;
             track.thumbnail = data.thumbnail;
             track.resolved = true;
-            if (data.thumbnail) document.getElementById("np-img").src = data.thumbnail;
+            streamUrl = resolvedStreamUrl; // Update the local streamUrl variable
         }
 
-        // Final UI Update (Artist Name)
-        // If it's a resolved YouTube video, we might not have the artist name separate from title unless we parsed it.
-        // For now, let's assume Title is "Artist - Song". we can put "Reproduciendo" or try to split.
+        // Unified UI & Metadata Update
+        let artistName = "Reproduciendo";
         if (!track.is_intro) {
-            document.getElementById("np-artist").innerText = "Reproduciendo";
+            // Try to parse artist if title is "Artist - Song"
+            if (track.title.includes(" - ")) {
+                const parts = track.title.split(" - ");
+                artistName = parts[0];
+                // track.title = parts[1]; // Optional: keep full title or split
+            }
         }
+        updateNowPlaying(track.title, artistName, track.thumbnail); // Use track.thumbnail as it might have been updated
 
         audioPlayer.src = streamUrl;
         audioPlayer.play();
@@ -1114,3 +1122,50 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// --- Media Session & Helper Functions ---
+
+function setupMediaSession() {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', () => {
+            if (audioPlayer.paused) playBtn.click();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+            if (!audioPlayer.paused) playBtn.click();
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+            // Logic for previous? For now just restart or do nothing unless we have history
+            if (audioPlayer.currentTime > 3) {
+                audioPlayer.currentTime = 0;
+            }
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+            nextBtn.click();
+        });
+    }
+}
+
+function updateNowPlaying(title, artist, cover) {
+    // 1. Update DOM
+    const titleEl = document.getElementById("np-title");
+    const artistEl = document.getElementById("np-artist");
+    const imgEl = document.getElementById("np-img");
+
+    if (titleEl) titleEl.innerText = title;
+    if (artistEl) artistEl.innerText = artist;
+    if (imgEl && cover) imgEl.src = cover;
+
+    // 2. Update Media Session
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: title,
+            artist: artist,
+            album: "Asuka Music",
+            artwork: [
+                { src: cover || 'asuka.png', sizes: '512x512', type: 'image/png' }
+            ]
+        });
+    }
+}
+
+// Initialize
+setupMediaSession();
