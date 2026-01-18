@@ -418,7 +418,8 @@ function startRadio(mood) {
     fetchNextRadioSong(true);
 
     // 4. Feedback
-    document.getElementById("np-title").innerText = `Modo ${mood}`;
+    const displayMood = (mood === 'AUTO') ? "Asuka Mix" : mood;
+    document.getElementById("np-title").innerText = `Modo ${displayMood}`;
     document.getElementById("np-artist").innerText = "Sintonizando...";
 }
 
@@ -442,7 +443,7 @@ async function fetchNextRadioSong(isStart = false) {
             body: JSON.stringify({
                 history: history,
                 is_start: isStart,
-                mood: currentRadioMood,
+                mood: (currentRadioMood === 'AUTO') ? null : currentRadioMood,
                 enable_intros: enableIntros
             })
         });
@@ -742,6 +743,8 @@ function openSettingsModal() {
         document.getElementById("settings-uid").value = ASUKA_UID;
         const savedIntros = localStorage.getItem("asuka_enable_intros");
         document.getElementById("setting-intros").checked = (savedIntros === null || savedIntros === "true");
+        // Refresh Theme UI
+        initTheme();
     }
 }
 
@@ -766,3 +769,48 @@ function copyUserID() {
         setTimeout(() => btn.innerHTML = original, 1500);
     });
 }
+
+// --- Theme Logic ---
+const themeColors = [
+    { name: "Asuka Pink", val: "#ff0055" },
+    { name: "Neon Blue", val: "#00d2d3" },
+    { name: "Violet", val: "#a55eea" },
+    { name: "Sunny", val: "#ff9f43" },
+    { name: "Lime", val: "#badc58" },
+    { name: "Ocean", val: "#2e86de" }
+];
+
+function initTheme() {
+    const saved = localStorage.getItem("asuka_theme") || "#ff0055";
+    document.documentElement.style.setProperty('--primary', saved);
+
+    // Render Buttons
+    const container = document.getElementById("theme-colors");
+    if (container) {
+        container.innerHTML = "";
+        themeColors.forEach(c => {
+            const btn = document.createElement("div");
+            btn.style.width = "30px";
+            btn.style.height = "30px";
+            btn.style.borderRadius = "50%";
+            btn.style.backgroundColor = c.val;
+            btn.style.cursor = "pointer";
+            btn.style.border = (saved === c.val) ? "3px solid #fff" : "2px solid rgba(255,255,255,0.2)";
+            btn.style.flexShrink = "0";
+
+            btn.onclick = () => setTheme(c.val);
+            container.appendChild(btn);
+        });
+    }
+}
+
+function setTheme(color) {
+    document.documentElement.style.setProperty('--primary', color);
+    localStorage.setItem("asuka_theme", color);
+    initTheme(); // Re-render to update active border
+}
+
+// Call on startup
+document.addEventListener("DOMContentLoaded", () => {
+    initTheme();
+});
