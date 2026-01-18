@@ -304,6 +304,12 @@ header {
         color: #fff;
         font-size: 24px;
         padding-right: 15px;
+        cursor: pointer;
+    }
+
+    #menu-close {
+        margin-left: auto; /* Push to right */
+        padding-right: 0;
     }
 
     .now-playing {

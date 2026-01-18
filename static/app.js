@@ -198,6 +198,13 @@ async function loadAndPlay(track) {
             if (data.thumbnail) document.getElementById("np-img").src = data.thumbnail;
         }
 
+        // Final UI Update (Artist Name)
+        // If it's a resolved YouTube video, we might not have the artist name separate from title unless we parsed it.
+        // For now, let's assume Title is "Artist - Song". we can put "Reproduciendo" or try to split.
+        if (!track.is_intro) {
+            document.getElementById("np-artist").innerText = "Reproduciendo";
+        }
+
         audioPlayer.src = streamUrl;
         audioPlayer.play();
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
@@ -404,6 +411,24 @@ function formatTime(s) {
 document.getElementById("menu-toggle").onclick = () => {
     document.getElementById("sidebar").classList.toggle("active");
 }
+
+const menuClose = document.getElementById("menu-close");
+if (menuClose) {
+    menuClose.onclick = () => {
+        document.getElementById("sidebar").classList.remove("active");
+    }
+}
+
+// Close sidebar when clicking a link (Mobile Only Logic)
+// Use event delegation or addEventListener to avoid overwriting onclick
+document.querySelectorAll(".nav-links a").forEach(link => {
+    link.addEventListener('click', () => {
+        // Only close if we are in mobile mode (check width or just active class)
+        if (window.innerWidth <= 768) {
+            document.getElementById("sidebar").classList.remove("active");
+        }
+    });
+});
 
 // Volume Control
 const volSlider = document.getElementById("vol-slider");
