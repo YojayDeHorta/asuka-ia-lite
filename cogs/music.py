@@ -350,9 +350,6 @@ class Music(commands.Cog):
         added_count = 0
         first_track = None
         
-        # Si hay muchos resultados (playlist), procesamos
-        # La primera canción se procesa diferente (se intenta reproducir)
-        
         for i, res in enumerate(results):
              # Adapting item format
              # New format needed for queue: 
@@ -364,16 +361,12 @@ class Music(commands.Cog):
              item = None
              
              if res['type'] == 'query':
-                  # Spotify / Generic Search
-                  item = ("PENDING_SEARCH", res['title']) # Title used as query if URL not available or just to show title
-                  # Actually if URL is the query, we should use it? 
-                  # Core returns 'title' as "Artist - Song". Let's use that as query.
-                  pass
+                  item = ("PENDING_SEARCH", res['title']) 
              elif res['type'] == 'video':
-                  # YouTube Direct
                   item = (None, res['title'], res['url'], res['duration'])
              
              if item:
+                  if ctx.guild.id not in self.queues: self.queues[ctx.guild.id] = []
                   self.queues[ctx.guild.id].append(item)
                   added_count += 1
                   if i == 0: first_track = res
@@ -399,8 +392,8 @@ class Music(commands.Cog):
                  await ctx.send(embed=embed)
                  await self._update_np_embed(ctx)
         else:
-             # Start
-             self.check_queue(ctx)
+             # Start (DEADLOCK FIX: Run in Executor because check_queue blocks on lazy resolution)
+             await self.bot.loop.run_in_executor(None, self.check_queue, ctx)
 
         # Log History (First song only for brevity)
         try:

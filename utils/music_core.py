@@ -103,9 +103,6 @@ class MusicCore:
             if 'entries' in data:
                 # Playlist o Search Result
                 entries = list(data['entries'])
-                if entries:
-                     logger.info(f"DEBUG SEARCH KEYS: {entries[0].keys()}")
-                     logger.info(f"DEBUG SEARCH FIRST: {entries[0]}")
                 for entry in entries:
                      # En modo flat, 'url' suele ser el ID o la url corta.
                      # Asegurar URL completa
