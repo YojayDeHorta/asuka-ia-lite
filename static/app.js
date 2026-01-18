@@ -192,7 +192,7 @@ async function loadHistory() {
                     <h4>${item.title}</h4>
                     <p>Historial Reciente</p>
                 </div>
-                <button class="track-action" title="Reproducir de nuevo" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-play"></i></button>
+                <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i></button>
             `;
             container.appendChild(el);
         });
@@ -209,10 +209,7 @@ async function playHistoryItem(title) {
         is_intro: false,
         resolved: false
     };
-    currentQueue.push(track);
-    currentIndex = currentQueue.length - 1;
-    loadAndPlay(track);
-    updateQueueUI();
+    playTrack(track);
 }
 
 // --- Player Logic ---
@@ -245,6 +242,9 @@ async function loadAndPlay(track) {
     document.getElementById("np-title").innerText = track.title;
     document.getElementById("np-artist").innerText = track.is_intro ? "Asuka (AI DJ)" : "Cargando...";
     document.getElementById("np-img").src = track.thumbnail || "https://dummyimage.com/150x150/000/fff&text=Asuka";
+
+    // Check Like Status immediately
+    updateLikeButtonState(track.title);
 
     // Highlight in Queue
     updateQueueUI();
@@ -668,7 +668,7 @@ async function loadFavorites() {
                     <h4>${item.title}</h4>
                     <p>Me Gusta</p>
                 </div>
-                <button class="track-action" title="Reproducir" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-play"></i></button>
+                <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i></button>
             `;
             container.appendChild(el);
         });

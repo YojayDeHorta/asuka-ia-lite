@@ -7,7 +7,7 @@
     "theme_color": "#ff0055",
     "icons": [
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/3750/3750019.png",
+            "src": "asuka.png",
             "sizes": "512x512",
             "type": "image/png"
         }
