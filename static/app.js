@@ -8,6 +8,25 @@ const searchInput = document.getElementById("global-search");
 let currentQueue = [];
 let currentIndex = -1;
 
+// --- User ID Management ---
+let ASUKA_UID = localStorage.getItem("asuka_web_uid");
+if (!ASUKA_UID) {
+    // Generate random 6-digit ID (100000 - 999999)
+    ASUKA_UID = Math.floor(100000 + Math.random() * 900000).toString();
+    localStorage.setItem("asuka_web_uid", ASUKA_UID);
+    console.log("New User ID Generated:", ASUKA_UID);
+} else {
+    console.log("Welcome back, User:", ASUKA_UID);
+}
+
+// Wrapper for Fetch to include UID
+async function authenticatedFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    // Add custom header
+    options.headers['X-Asuka-UID'] = ASUKA_UID;
+    return fetch(url, options);
+}
+
 // --- Navigation ---
 // --- Navigation ---
 function showSection(id) {
@@ -186,7 +205,7 @@ async function loadAndPlay(track) {
         // Let's rely on a flag or specific check.
 
         if (!track.is_intro && !track.resolved && (!streamUrl || !streamUrl.startsWith("/temp"))) {
-            const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
+            const res = await authenticatedFetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
             if (!res.ok) throw new Error("Resolve failed");
             const data = await res.json();
             streamUrl = data.url;
@@ -241,7 +260,7 @@ async function prefetchNext() {
 
         console.log("Prefetching next:", nextTrack.title);
         try {
-            const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(nextTrack.title)}`);
+            const res = await authenticatedFetch(`${API_URL}/resolve?q=${encodeURIComponent(nextTrack.title)}`);
             if (res.ok) {
                 const data = await res.json();
                 nextTrack.url = data.url;
@@ -344,7 +363,7 @@ async function fetchNextRadioSong(isStart = false) {
         // Collect history for context
         const history = currentQueue.slice(-5).map(t => t.title);
 
-        const res = await fetch(`${API_URL}/radio/next`, {
+        const res = await authenticatedFetch(`${API_URL}/radio/next`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

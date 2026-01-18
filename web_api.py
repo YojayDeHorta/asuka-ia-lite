@@ -42,7 +42,7 @@ async def search(q: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/resolve")
-async def resolve_stream(q: str):
+async def resolve_stream(q: str, request: Request):
     """Resuelve un título o búsqueda a una URL de stream."""
     try:
         data = await core.get_stream_url(q)
@@ -50,9 +50,13 @@ async def resolve_stream(q: str):
             raise HTTPException(status_code=404, detail="Not found")
             
         # Log History!
-        # Use Dummy Guild ID 0 for Web, and WEB_USER_ID
+        # Use UID from Header if available, else fallback
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
         try:
-             database.log_song(0, WEB_USER_ID, data['title'])
+            # We use UID as both user_id and guild_id for web contexts
+            user_id = int(uid_str)
+            guild_id = user_id 
+            database.log_song(guild_id, user_id, data['title'])
         except Exception as log_err:
              logger.error(f"Failed to log history: {log_err}")
              
@@ -90,25 +94,23 @@ class RadioContext(BaseModel):
     mood: str | None = None
 
 @app.post("/api/radio/next")
-async def next_radio_song(ctx: RadioContext):
+async def next_radio_song(ctx: RadioContext, request: Request):
     import os
     try:
-        # 1. Use Frontend History for "Immediate Context" (Last 5)
-        # This is good because it reflects exactly what the user just heard in this session.
+        # 1. Use Frontend History...
         recent = ctx.history[-5:] if ctx.history else []
         
-        # 2. Use Database History for "Older Context" (Long Term Memory)
-        # We fetch the last 20 songs from DB for this "Guild" (Web = 0)
+        # 2. Use Database History
+        # Fetch UID from Header
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        guild_id = int(uid_str) if uid_str.isdigit() else 0
+        
         older = []
         try:
-             # We need a function in database.py or execute raw here? 
-             # Let's use a helper from database.py if available, or just add one.
-             raw_history = database.get_recent_songs(0, limit=20) 
-             # raw_history is list of strings (titles)
+             raw_history = database.get_recent_songs(guild_id, limit=20) 
              older = raw_history
         except Exception as db_e:
              logger.error(f"Failed to fetch DB history: {db_e}")
-             # Fallback to whatever client sent
              older = ctx.history[:-5] if len(ctx.history) > 5 else []
 
         data = await core.generate_radio_content(recent, older, is_start=ctx.is_start, mood=ctx.mood)
