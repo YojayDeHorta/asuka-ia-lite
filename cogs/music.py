@@ -925,18 +925,13 @@ class Music(commands.Cog):
                 older_context = ". ".join(older_list)
 
             # Verificar modo
+            # Verificar modo
             radio_mode = self.radio_active.get(ctx.guild.id, "AUTO")
             
-            prompt_instruction = ""
+            mood_arg = None
             if radio_mode and radio_mode.startswith("SPECIFIC:"):
-                 target = radio_mode.split(":", 1)[1]
-                 prompt_instruction = (
-                     f"Tu tarea es elegir la siguiente canción OBLIGATORIAMENTE relacionada con: '{target}'. "
-                     f"Si es un artista, pon SOLO canciones de ese artista o colaboraciones directas. "
-                     f"Historial reciente: [{immediate_context}]. NO REPITAS NADA."
-                 )
-            else:
-                # Modo AUTO (Historial Inteligente)
+                 mood_arg = radio_mode.split(":", 1)[1]
+
             # --- Detectar Inicio de Sesión ---
             is_start = False
             if ctx.guild.id in self.radio_session_start:
@@ -944,7 +939,7 @@ class Music(commands.Cog):
                 is_start = True
 
             # --- Generar Contenido con MusicCore ---
-            radio_data = await self.core.generate_radio_content(immediate_context, older_context, is_start)
+            radio_data = await self.core.generate_radio_content(immediate_context, older_context, is_start, mood=mood_arg)
             
             # --- Preparar Items para la Cola ---
             queue_items = []
