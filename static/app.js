@@ -362,6 +362,16 @@ document.getElementById("btn-next").onclick = () => {
     }
 };
 
+
+// --- Repeat Logic ---
+let isRepeat = false;
+const repeatBtn = document.getElementById("btn-repeat");
+if (repeatBtn) {
+    repeatBtn.onclick = () => {
+        isRepeat = !isRepeat;
+        repeatBtn.style.color = isRepeat ? "var(--primary)" : "inherit";
+    };
+}
 // --- Radio Mode ---
 let isRadioMode = false;
 const radioBtn = document.getElementById("btn-radio-mode");
@@ -485,7 +495,14 @@ async function fetchNextRadioSong(isStart = false) {
 }
 
 // Auto-Next
+// Auto-Next
 audioPlayer.onended = () => {
+    if (isRepeat) {
+        audioPlayer.currentTime = 0;
+        audioPlayer.play();
+        return;
+    }
+
     if (currentIndex < currentQueue.length - 1) {
         currentIndex++;
         loadAndPlay(currentQueue[currentIndex]);
