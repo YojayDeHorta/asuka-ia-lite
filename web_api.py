@@ -48,10 +48,19 @@ async def resolve_stream(q: str):
         data = await core.get_stream_url(q)
         if not data:
             raise HTTPException(status_code=404, detail="Not found")
+            
+        # Log History!
+        # Use Dummy Guild ID 0 for Web, and WEB_USER_ID
+        try:
+             database.log_song(0, WEB_USER_ID, data['title'])
+        except Exception as log_err:
+             logger.error(f"Failed to log history: {log_err}")
+             
         return data
     except Exception as e:
         logger.error(f"Resolve error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Playlist Endpoints (Reusing Database)
 @app.get("/api/playlists")
@@ -79,20 +88,33 @@ class RadioContext(BaseModel):
     history: list[str] = []
     is_start: bool = False
 
+
 @app.post("/api/radio/next")
 async def next_radio_song(ctx: RadioContext):
     import os
     try:
-        # Split history into recent (5) and older
+        # 1. Use Frontend History for "Immediate Context" (Last 5)
+        # This is good because it reflects exactly what the user just heard in this session.
         recent = ctx.history[-5:] if ctx.history else []
-        older = ctx.history[:-5] if len(ctx.history) > 5 else []
         
+        # 2. Use Database History for "Older Context" (Long Term Memory)
+        # We fetch the last 20 songs from DB for this "Guild" (Web = 0)
+        older = []
+        try:
+             # We need a function in database.py or execute raw here? 
+             # Let's use a helper from database.py if available, or just add one.
+             raw_history = database.get_recent_songs(0, limit=20) 
+             # raw_history is list of strings (titles)
+             older = raw_history
+        except Exception as db_e:
+             logger.error(f"Failed to fetch DB history: {db_e}")
+             # Fallback to whatever client sent
+             older = ctx.history[:-5] if len(ctx.history) > 5 else []
+
         data = await core.generate_radio_content(recent, older, is_start=ctx.is_start)
         
         # Convert absolute path to URL for audio
         if data['intro_audio']:
-             # Assuming server runs on root or we just return relative path
-             # Client will prepend host
              filename = os.path.basename(data['intro_audio'])
              data['intro_audio_url'] = f"/temp/{filename}"
         

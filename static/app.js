@@ -185,7 +185,7 @@ async function loadAndPlay(track) {
         // But wait, search results also have 'url'. 
         // Let's rely on a flag or specific check.
 
-        if (!track.is_intro && (!streamUrl || !streamUrl.startsWith("/temp"))) {
+        if (!track.is_intro && !track.resolved && (!streamUrl || !streamUrl.startsWith("/temp"))) {
             const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(track.title)}`);
             if (!res.ok) throw new Error("Resolve failed");
             const data = await res.json();
@@ -194,6 +194,7 @@ async function loadAndPlay(track) {
             // Update track info with full details
             track.url = streamUrl;
             track.thumbnail = data.thumbnail;
+            track.resolved = true;
             if (data.thumbnail) document.getElementById("np-img").src = data.thumbnail;
         }
 
@@ -210,6 +211,45 @@ async function loadAndPlay(track) {
             currentIndex++;
             loadAndPlay(currentQueue[currentIndex]);
         }
+    } finally {
+        // Trigger prefetch for next song
+        prefetchNext();
+    }
+}
+
+async function prefetchNext() {
+    if (currentIndex < currentQueue.length - 1) {
+        const nextTrack = currentQueue[currentIndex + 1];
+
+        // If already resolved or is intro/temp, skip
+        if (nextTrack.is_intro || (nextTrack.url && (nextTrack.url.startsWith("http") || nextTrack.url.startsWith("/temp")))) {
+            // Check if it's a raw Spotify/YouTube link that hasn't been resolved to a stream
+            // My logic in loadAndPlay checks for (!streamUrl || !streamUrl.startsWith("/temp"))
+            // If we have a youtube watch URL, it starts with http but it's NOT a stream.
+            // Heuristic: If it has specific extension or googlevideo, it's stream. otherwise maybe not.
+            // Simpler: If we haven't flagged it as 'resolved', we do it.
+            if (nextTrack.resolved) return;
+            if (nextTrack.is_intro) return;
+        }
+
+        console.log("Prefetching next:", nextTrack.title);
+        try {
+            const res = await fetch(`${API_URL}/resolve?q=${encodeURIComponent(nextTrack.title)}`);
+            if (res.ok) {
+                const data = await res.json();
+                nextTrack.url = data.url;
+                nextTrack.thumbnail = data.thumbnail;
+                nextTrack.resolved = true; // Mark as resolved
+                console.log("Prefetch complete:", nextTrack.title);
+                updateQueueUI(); // Update UI to show thumb if it changed
+            }
+        } catch (e) {
+            console.error("Prefetch failed:", e);
+        }
+    } else if (isRadioMode && currentIndex === currentQueue.length - 1) {
+        // Queue is ending, but Radio Mode is ON. Prefetch the next AI song!
+        console.log("Radio Prefetch Triggered 📻");
+        fetchNextRadioSong(false);
     }
 }
 
