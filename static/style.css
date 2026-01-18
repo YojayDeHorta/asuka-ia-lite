@@ -308,7 +308,8 @@ header {
     }
 
     #menu-close {
-        margin-left: auto; /* Push to right */
+        margin-left: auto;
+        /* Push to right */
         padding-right: 0;
     }
 
@@ -319,4 +320,61 @@ header {
     .volume-controls {
         display: none;
     }
+}
+
+/* --- UI Polish: Likes & Tabs --- */
+
+/* Heart Button */
+#like-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.4rem;
+    color: #b3b3b3;
+    /* Default gray to match controls */
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    padding: 10px;
+    border-radius: 50%;
+}
+
+#like-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+#like-btn:active {
+    transform: scale(0.9);
+}
+
+/* Library Tabs */
+.library-tabs {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 15px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: #b3b3b3;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: #000;
+    background: #fff;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+    font-weight: 700;
 }

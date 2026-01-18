@@ -51,12 +51,16 @@ function showSection(id) {
 
     // 3. Show Target View
     if (id === 'search' || id === 'home' || id === 'library' || id === 'queue') {
-        // Mapping: home->home-view, search->results-view, library->(placeholder for now)
+        // Mapping: home->home-view, search->results-view, library->library-view
         let targetId = 'home-view';
         if (id === 'search') targetId = 'results-view';
         if (id === 'queue') {
             targetId = 'queue-view';
             updateQueueUI();
+        }
+        if (id === 'library') {
+            targetId = 'library-view';
+            loadHistory();
         }
 
         const view = document.getElementById(targetId);
@@ -157,6 +161,59 @@ searchInput.addEventListener("keypress", async (e) => {
         }
     }
 });
+
+// --- Library (History) ---
+async function loadHistory() {
+    const container = document.getElementById("library-list");
+    if (!container) return; // Need to add this ID to HTML
+
+    container.innerHTML = '<p style="text-align:center; color:#888;">Cargando historial...</p>';
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/history`);
+        if (!res.ok) throw new Error("Failed");
+        const history = await res.json();
+
+        container.innerHTML = "";
+
+        if (history.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:40px; color:#666;"><i class="fa-solid fa-clock-rotate-left" style="font-size:40px; margin-bottom:10px;"></i><p>Aún no tienes historial.</p></div>';
+            return;
+        }
+
+        // Render List
+        history.forEach((item, index) => {
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div style="width: 30px; text-align: center; color:#666;">${index + 1}</div>
+                <div class="track-img" style="background:#333; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-music"></i></div>
+                <div class="track-info">
+                    <h4>${item.title}</h4>
+                    <p>Historial Reciente</p>
+                </div>
+                <button class="track-action" title="Reproducir de nuevo" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-play"></i></button>
+            `;
+            container.appendChild(el);
+        });
+
+    } catch (e) {
+        container.innerHTML = '<p style="color:red">Error cargando historial.</p>';
+    }
+}
+
+async function playHistoryItem(title) {
+    const track = {
+        title: title,
+        url: null,
+        is_intro: false,
+        resolved: false
+    };
+    currentQueue.push(track);
+    currentIndex = currentQueue.length - 1;
+    loadAndPlay(track);
+    updateQueueUI();
+}
 
 // --- Player Logic ---
 // --- Player Logic ---
@@ -498,4 +555,125 @@ if (volSlider) {
         audioPlayer.volume = e.target.value;
         localStorage.setItem("asuka_volume", e.target.value);
     };
+}
+
+// --- Likes System ---
+let currentTrackLiked = false;
+
+async function updateLikeButtonState(title) {
+    const btn = document.getElementById("like-btn");
+    const icon = btn.querySelector("i");
+
+    // Reset visual
+    icon.className = "fa-regular fa-heart";
+    btn.style.color = "#b3b3b3";
+    currentTrackLiked = false;
+
+    if (!title || title === "Esperando...") return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/favorites/check?q=${encodeURIComponent(title)}`);
+        const data = await res.json();
+
+        currentTrackLiked = data.is_liked;
+        if (currentTrackLiked) {
+            icon.className = "fa-solid fa-heart";
+            btn.style.color = "#ff4757"; // Red
+        }
+    } catch (e) {
+        console.error("Error checking like:", e);
+    }
+}
+
+async function toggleLike() {
+    // Get current track title
+    const title = document.getElementById("np-title").innerText;
+    if (!title || title === "Esperando...") return;
+
+    const newState = !currentTrackLiked;
+
+    // Optimistic UI Update
+    const btn = document.getElementById("like-btn");
+    const icon = btn.querySelector("i");
+
+    if (newState) {
+        icon.className = "fa-solid fa-heart";
+        btn.style.color = "#ff4757";
+    } else {
+        icon.className = "fa-regular fa-heart";
+        btn.style.color = "#b3b3b3";
+    }
+    currentTrackLiked = newState;
+
+    // Send to Backend
+    try {
+        await authenticatedFetch(`${API_URL}/favorites`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, is_liked: newState })
+        });
+        // If we are in library view, reload tab
+        if (document.getElementById("favorites-list").style.display !== 'none') {
+            loadFavorites();
+        }
+    } catch (e) {
+        console.error("Like toggle failed", e);
+    }
+}
+
+// --- Library Tabs ---
+function switchLibraryTab(tab) {
+    const historyList = document.getElementById("library-list");
+    const favList = document.getElementById("favorites-list");
+    const tabHist = document.getElementById("tab-history");
+    const tabLike = document.getElementById("tab-likes");
+
+    if (tab === 'history') {
+        historyList.style.display = "block";
+        favList.style.display = "none";
+        tabHist.classList.add("active");
+        tabLike.classList.remove("active");
+        loadHistory();
+    } else {
+        historyList.style.display = "none";
+        favList.style.display = "block";
+        tabHist.classList.remove("active");
+
+        tabLike.classList.add("active");
+        loadFavorites();
+    }
+}
+
+async function loadFavorites() {
+    const container = document.getElementById("favorites-list");
+    container.innerHTML = '<p style="text-align:center; color:#888;">Cargando favoritos...</p>';
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/favorites`);
+        const favorites = await res.json();
+
+        container.innerHTML = "";
+
+        if (favorites.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:40px; color:#666;"><i class="fa-regular fa-heart" style="font-size:40px; margin-bottom:10px;"></i><p>Aún no tienes favoritos.</p></div>';
+            return;
+        }
+
+        favorites.forEach((item) => {
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div class="track-img" style="background:#ff4757; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-heart" style="color:white"></i></div>
+                <div class="track-info">
+                    <h4>${item.title}</h4>
+                    <p>Me Gusta</p>
+                </div>
+                <button class="track-action" title="Reproducir" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-play"></i></button>
+            `;
+            container.appendChild(el);
+        });
+
+    } catch (e) {
+        container.innerHTML = '<p style="color:red">Error cargando favoritos.</p>';
+    }
 }

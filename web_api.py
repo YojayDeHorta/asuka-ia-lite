@@ -76,6 +76,22 @@ def get_playlists():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/history")
+def get_history(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        guild_id = int(uid_str) if uid_str.isdigit() else 0
+        
+        # Get raw list
+        songs = database.get_recent_songs(guild_id, limit=50) # Get last 50
+        
+        # Format as list of objects
+        return [{"title": title} for title in songs]
+    except Exception as e:
+         logger.error(f"History fetch error: {e}")
+         return []
+
 @app.get("/api/playlists/{name}")
 def get_playlist_content(name: str):
     import json
@@ -149,6 +165,49 @@ def delete_playlist(name: str):
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
+class FavoriteRequest(BaseModel):
+    title: str
+    is_liked: bool
+
+@app.post("/api/favorites")
+def toggle_favorite(req: FavoriteRequest, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+        
+        if req.is_liked:
+            database.add_favorite(user_id, req.title)
+        else:
+            database.remove_favorite(user_id, req.title)
+        return {"status": "ok", "is_liked": req.is_liked}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/favorites")
+def get_favorites(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+        
+        favs = database.get_favorites(user_id)
+        return [{"title": t} for t in favs]
+    except Exception as e:
+        logger.error(f"Fav error: {e}")
+        return []
+
+@app.get("/api/favorites/check")
+def check_favorite(q: str, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+        
+        is_liked = database.is_favorite(user_id, q)
+        return {"is_liked": is_liked}
+    except Exception as e:
+        return {"is_liked": False}
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
 import os
