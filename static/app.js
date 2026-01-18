@@ -1127,19 +1127,23 @@ document.addEventListener('click', (e) => {
 function setupMediaSession() {
     if ('mediaSession' in navigator) {
         navigator.mediaSession.setActionHandler('play', () => {
-            if (audioPlayer.paused) playBtn.click();
+            // Retrieve fresh reference or use existing if stable
+            document.getElementById("btn-play").click();
         });
         navigator.mediaSession.setActionHandler('pause', () => {
-            if (!audioPlayer.paused) playBtn.click();
+            document.getElementById("btn-play").click();
         });
         navigator.mediaSession.setActionHandler('previoustrack', () => {
-            // Logic for previous? For now just restart or do nothing unless we have history
             if (audioPlayer.currentTime > 3) {
                 audioPlayer.currentTime = 0;
+            } else {
+                const prev = document.getElementById("btn-prev");
+                if (prev) prev.click();
             }
         });
         navigator.mediaSession.setActionHandler('nexttrack', () => {
-            nextBtn.click();
+            const next = document.getElementById("btn-next");
+            if (next) next.click();
         });
     }
 }
