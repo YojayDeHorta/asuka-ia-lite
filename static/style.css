@@ -302,6 +302,7 @@ header {
 @media (max-width: 768px) {
     .app-container {
         grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto;
     }
 
     .sidebar {
@@ -332,12 +333,50 @@ header {
         padding-right: 0;
     }
 
-    .now-playing {
-        width: auto;
+    /* Mobile Stacked Layout */
+    .player-bar {
+        flex-direction: column;
+        height: auto;
+        padding: 15px 20px;
+        position: relative;
     }
 
+    .now-playing {
+        width: 100%;
+        margin-bottom: 15px;
+        justify-content: center;
+        padding-right: 0;
+    }
+
+    .player-controls {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+
+    /* Unhide volume controls container for Queue Button */
+    /* Unhide volume controls container for Queue Button */
     .volume-controls {
-        display: none;
+        display: flex;
+        position: absolute;
+        top: auto;
+        bottom: 55px;
+        /* Aligned with Control Buttons row (approx) */
+        right: 15px;
+        left: auto;
+        width: auto;
+        margin: 0;
+    }
+
+    /* Hide Volume Slider */
+    .vol-wrapper {
+        display: none !important;
+    }
+
+    .btn-queue-toggle {
+        margin-right: 0;
+        background: rgba(255, 255, 255, 0.05);
+        /* Slight background for visibility */
+        border-radius: 50%;
     }
 }
 

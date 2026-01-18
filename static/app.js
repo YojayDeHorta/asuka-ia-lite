@@ -900,16 +900,11 @@ function updateAuthUI(user) {
 
 // --- QUEUE PANEL ---
 function toggleQueue() {
-    console.log("Toggle Queue clicked");
     const panel = document.getElementById("queue-panel");
 
-    if (!panel) {
-        console.error("Queue panel not found");
-        return;
-    }
+    if (!panel) return;
 
     panel.classList.toggle("active");
-    console.log("Panel active state:", panel.classList.contains("active"));
 
     if (panel.classList.contains("active")) {
         renderQueue();
