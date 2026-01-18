@@ -618,3 +618,152 @@ input:checked+.slider:before {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(255, 0, 85, 0.4);
 }
+
+/* --- Queue Panel --- */
+.queue-panel {
+    position: fixed;
+    right: -400px;
+    top: 0;
+    width: 400px;
+    height: 100vh;
+    background: linear-gradient(180deg, #1a1a1f 0%, #0f0f12 100%);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+    transition: right 0.3s ease;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+}
+
+.queue-panel.active {
+    right: 0;
+}
+
+.queue-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.queue-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.queue-action-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.queue-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
+}
+
+.queue-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.queue-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: grab;
+    transition: 0.3s;
+}
+
+.queue-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.queue-item.current {
+    background: linear-gradient(135deg, rgba(255, 0, 85, 0.2), rgba(214, 48, 49, 0.2));
+    border-color: var(--primary);
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+}
+
+.queue-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.queue-item-drag {
+    color: #666;
+    font-size: 1.2rem;
+}
+
+.queue-item-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.queue-item-title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.queue-item-current {
+    font-size: 0.7rem;
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.queue-item-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.queue-item-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: 0.3s;
+}
+
+.queue-item-btn:hover {
+    color: var(--primary);
+}
+
+.queue-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.queue-empty i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.3;
+}
+
+/* Mobile Queue */
+@media (max-width: 768px) {
+    .queue-panel {
+        width: 100%;
+        right: -100%;
+    }
+}

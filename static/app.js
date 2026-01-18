@@ -68,53 +68,21 @@ function showSection(id) {
     }
 }
 
+
 function updateQueueUI() {
-    const container = document.getElementById("queue-list");
-    if (!container) return;
-
-    if (currentQueue.length === 0) {
-        container.innerHTML = '<p style="color: #666; padding: 20px;">La cola está vacía.</p>';
-        return;
+    // Update sidebar queue (old)
+    renderQueue("queue-list");
+    // Also update panel queue (new) if it's open
+    const panel = document.getElementById("queue-panel");
+    if (panel && panel.classList.contains("active")) {
+        renderQueue(); // Uses default "queue-panel-list"
     }
-
-    container.innerHTML = "";
-    currentQueue.forEach((track, index) => {
-        const el = document.createElement("div");
-        el.className = "track-item";
-        if (track.is_intro) el.style.background = "rgba(255, 255, 255, 0.05)"; // Distinct background
-        if (index === currentIndex) el.classList.add("playing"); // Add style for current song
-
-        let thumbStyle = '';
-        if (track.is_intro) {
-            // Use icon for intro
-            thumbStyle = '';
-        } else {
-            thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
-        }
-
-        const statusIcon = index === currentIndex ? '<i class="fa-solid fa-volume-high" style="color:var(--primary)"></i>' : `<span style="color:#666">${index + 1}</span>`;
-
-        const imgContent = track.is_intro
-            ? '<div style="display:flex; justify-content:center; align-items:center; height:100%; color: var(--primary);"><i class="fa-solid fa-robot"></i></div>'
-            : '';
-
-        el.innerHTML = `
-            <div style="width: 30px; text-align: center;">${statusIcon}</div>
-            <div class="track-img" style="${thumbStyle}">${imgContent}</div>
-            <div class="track-info">
-                <h4>${track.title}</h4>
-                <p>${track.is_intro ? 'Anuncio' : 'En cola'}</p>
-            </div>
-             <button class="track-action" onclick="playQueueIndex(${index})"><i class="fa-solid fa-play"></i></button>
-        `;
-        container.appendChild(el);
-    });
 }
 
 function playQueueIndex(index) {
     currentIndex = index;
     loadAndPlay(currentQueue[currentIndex]);
-    updateQueueUI();
+    renderQueue();
 }
 
 // --- Search ---
@@ -905,3 +873,149 @@ function updateAuthUI(user) {
     const settingsUid = document.getElementById("settings-uid");
     if (settingsUid) settingsUid.value = user.id;
 }
+
+// --- QUEUE PANEL ---
+function toggleQueue() {
+    const panel = document.getElementById("queue-panel");
+
+    if (!panel) return;
+
+    panel.classList.toggle("active");
+
+    if (panel.classList.contains("active")) {
+        renderQueue();
+    }
+}
+
+function renderQueue(containerId = "queue-panel-list") {
+    const queueList = document.getElementById(containerId);
+    const queueCount = document.getElementById("queue-count");
+
+    if (!queueList) return;
+
+    // Update count badge
+    if (currentQueue.length > 0) {
+        queueCount.innerText = currentQueue.length;
+        queueCount.style.display = "block";
+    } else {
+        queueCount.style.display = "none";
+    }
+
+    // Empty state
+    if (currentQueue.length === 0) {
+        queueList.innerHTML = `
+            <div class="queue-empty">
+                <i class="fa-solid fa-list-music"></i>
+                <p>No hay canciones en cola</p>
+                <p style="font-size:0.8rem; opacity:0.5;">Busca y agrega música para empezar</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Render items
+    queueList.innerHTML = "";
+    currentQueue.forEach((track, index) => {
+        const item = document.createElement("div");
+        item.className = `queue-item ${index === currentIndex ? 'current' : ''}`;
+        item.draggable = true;
+        item.dataset.index = index;
+
+        // Handle both string and object tracks
+        const trackTitle = typeof track === 'string' ? track : (track.title || 'Canción sin título');
+
+        item.innerHTML = `
+            <i class="fa-solid fa-grip-vertical queue-item-drag"></i>
+            <div class="queue-item-info">
+                <div class="queue-item-title">${trackTitle}</div>
+                ${index === currentIndex ? '<div class="queue-item-current">▶ Reproduciendo</div>' : ''}
+            </div>
+            <div class="queue-item-actions">
+                ${index !== currentIndex ? `<button class="queue-item-btn" onclick="playQueueItem(${index})" title="Reproducir"><i class="fa-solid fa-play"></i></button>` : ''}
+                <button class="queue-item-btn" onclick="removeQueueItem(${index})" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            </div>
+        `;
+
+        // Drag events
+        item.addEventListener("dragstart", handleDragStart);
+        item.addEventListener("dragover", handleDragOver);
+        item.addEventListener("drop", handleDrop);
+        item.addEventListener("dragend", handleDragEnd);
+
+        queueList.appendChild(item);
+    });
+}
+
+let draggedIndex = null;
+
+function handleDragStart(e) {
+    draggedIndex = parseInt(e.target.dataset.index);
+    e.target.classList.add("dragging");
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const dropIndex = parseInt(e.target.closest(".queue-item").dataset.index);
+
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+        // Reorder queue
+        const [movedItem] = currentQueue.splice(draggedIndex, 1);
+        currentQueue.splice(dropIndex, 0, movedItem);
+
+        // Update currentIndex if needed
+        if (currentIndex === draggedIndex) {
+            currentIndex = dropIndex;
+        } else if (draggedIndex < currentIndex && dropIndex >= currentIndex) {
+            currentIndex--;
+        } else if (draggedIndex > currentIndex && dropIndex <= currentIndex) {
+            currentIndex++;
+        }
+
+        renderQueue();
+    }
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove("dragging");
+    draggedIndex = null;
+}
+
+function playQueueItem(index) {
+    currentIndex = index;
+    loadAndPlay(currentQueue[currentIndex]);
+    renderQueue();
+}
+
+function removeQueueItem(index) {
+    currentQueue.splice(index, 1);
+
+    // Adjust currentIndex
+    if (index < currentIndex) {
+        currentIndex--;
+    } else if (index === currentIndex) {
+        // If removing current song, stop playback
+        audioPlayer.pause();
+        currentIndex = -1;
+        if (currentQueue.length > 0) {
+            currentIndex = Math.min(index, currentQueue.length - 1);
+            loadAndPlay(currentQueue[currentIndex]);
+        }
+    }
+
+    renderQueue();
+}
+
+function clearQueue() {
+    if (confirm("¿Limpiar toda la cola de reproducción?")) {
+        currentQueue = [];
+        currentIndex = -1;
+        audioPlayer.pause();
+        renderQueue();
+        updateNowPlaying("Asuka Web", "Busca música para empezar");
+    }
+}
+
