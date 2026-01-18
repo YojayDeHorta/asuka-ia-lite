@@ -188,7 +188,8 @@ async function playTrack(track) {
 
     // Feedback in UI (Button change momentarily)
     const btns = document.querySelectorAll('.track-item button');
-    // Simple feedback: Toast or Log. Let's start with logic.
+    // Toast Feedback
+    showToast(`Agregado a la cola: ${track.title}`, "success");
     console.log("Added to queue:", track.title);
 
     // Refresh Queue UI if visible
@@ -350,6 +351,7 @@ if (radioBtn) {
         if (isRadioMode) {
             // Active Style
             radioBtn.style.color = "var(--primary)";
+            showToast("Modo Radio activado", "info");
 
             // If nothing is playing, kickstart it!
             if (currentQueue.length === 0 || currentIndex === -1) {
@@ -359,6 +361,7 @@ if (radioBtn) {
             // Inactive Style
             radioBtn.style.color = "inherit";
             currentRadioMood = null; // Reset mood when turned off
+            showToast("Modo Radio desactivado", "info");
         }
     };
 }
@@ -389,6 +392,7 @@ function startRadio(mood) {
     const displayMood = (mood === 'AUTO') ? "Asuka Mix" : mood;
     document.getElementById("np-title").innerText = `Modo ${displayMood}`;
     document.getElementById("np-artist").innerText = "Sintonizando...";
+    showToast(`Iniciando Radio: ${displayMood}`, "success");
 }
 
 // Global Radio Mood
@@ -735,6 +739,7 @@ function copyUserID() {
         const original = btn.innerHTML;
         btn.innerHTML = '<i class="fa-solid fa-check"></i>';
         setTimeout(() => btn.innerHTML = original, 1500);
+        showToast("ID copiado al portapapeles", "success");
     });
 }
 
@@ -776,6 +781,7 @@ function setTheme(color) {
     document.documentElement.style.setProperty('--primary', color);
     localStorage.setItem("asuka_theme", color);
     initTheme(); // Re-render to update active border
+    showToast("Tema actualizado", "success");
 }
 
 // Call on startup
@@ -824,13 +830,20 @@ async function handleAuth(e) {
         if (!res.ok) throw new Error(data.detail || "Error desconocido");
 
         // Success
-        loginUser(data);
-        document.getElementById("auth-modal").style.display = "none";
-        document.getElementById("auth-form").reset();
+        if (currentAuthTab === 'register') {
+            showToast("¡Cuenta creada! Identifícate ahora", "success");
+            switchAuthTab('login');
+        } else {
+            loginUser(data);
+            document.getElementById("auth-modal").style.display = "none";
+            document.getElementById("auth-form").reset();
+            showToast(`Bienvenido de nuevo, ${data.username}`, "success");
+        }
 
     } catch (err) {
         errorMsg.innerText = err.message;
         errorMsg.style.display = "block";
+        showToast(err.message || "Error al iniciar sesión", "error");
     }
 }
 
@@ -1016,6 +1029,32 @@ function clearQueue() {
         audioPlayer.pause();
         renderQueue();
         updateNowPlaying("Asuka Web", "Busca música para empezar");
+        showToast("Cola de reproducción limpiada", "info");
     }
+}
+
+// --- Toast Notifications ---
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+
+    let iconClass = "fa-info-circle";
+    if (type === 'success') iconClass = "fa-check-circle";
+    if (type === 'error') iconClass = "fa-exclamation-circle";
+
+    toast.innerHTML = `<i class="fa-solid ${iconClass}"></i> <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    // Remove after duration
+    setTimeout(() => {
+        toast.classList.add("hiding");
+        toast.addEventListener("animationend", () => {
+            toast.remove();
+        });
+    }, duration);
 }
 
