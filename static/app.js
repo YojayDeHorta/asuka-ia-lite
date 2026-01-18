@@ -108,11 +108,19 @@ searchInput.addEventListener("keypress", async (e) => {
             data.forEach(track => {
                 const el = document.createElement("div");
                 el.className = "track-item";
-                // Use a default icon if thumbnail is missing
-                const thumbStyle = track.thumbnail ? `background-image: url('${track.thumbnail}'); background-size: cover;` : '';
+
+                let thumbContent = '';
+                let thumbStyle = '';
+
+                if (track.thumbnail) {
+                    thumbStyle = `background-image: url('${track.thumbnail}'); background-size: cover;`;
+                } else {
+                    thumbStyle = `background:#333; display:flex; align-items:center; justify-content:center;`;
+                    thumbContent = '<i class="fa-solid fa-music"></i>';
+                }
 
                 el.innerHTML = `
-                    <div class="track-img" style="${thumbStyle}"></div>
+                    <div class="track-img" style="${thumbStyle}">${thumbContent}</div>
                     <div class="track-info">
                         <h4>${track.title}</h4>
                         <p>${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}</p>

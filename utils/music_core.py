@@ -36,6 +36,12 @@ class MusicCore:
             except Exception as e:
                 logger.error(f"Error initializing Spotify: {e}")
 
+        # Optimizacion: Buscador Rapido (Flat)
+        self.search_cache = {}
+        search_opts = self.ytdl_opts.copy()
+        search_opts['extract_flat'] = True # No descargar info detallada de video
+        self.search_ytdl = yt_dlp.YoutubeDL(search_opts)
+
     async def search(self, query, limit=None):
         """
         Busca canciones en YouTube o Spotify.
@@ -72,6 +78,10 @@ class MusicCore:
                 raise e
 
         # 2. YouTube Search
+        if query in self.search_cache:
+            # logger.info(f"Cache Hit: {query}")
+            return self.search_cache[query]
+
         try:
             loop = asyncio.get_event_loop()
             
@@ -80,35 +90,52 @@ class MusicCore:
             if limit and not query.startswith("http"):
                  search_query = f"ytsearch{limit}:{query}"
             
-            data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(search_query, download=False))
+            # Usar buscador rapido (search_ytdl)
+            data = await loop.run_in_executor(None, lambda: self.search_ytdl.extract_info(search_query, download=False))
             
             if not data:
                 return []
+
+            new_results = []
 
             if 'entries' in data:
                 # Playlist o Search Result
                 entries = list(data['entries'])
                 for entry in entries:
-                     results.append({
+                     # En modo flat, 'url' suele ser el ID o la url corta.
+                     # Asegurar URL completa
+                     video_url = entry.get('url')
+                     if video_url and len(video_url) == 11 and "." not in video_url: # ID simple
+                         video_url = f"https://www.youtube.com/watch?v={video_url}"
+                     
+                     new_results.append({
                         'type': 'video',
                         'title': entry.get('title', 'Unknown'),
-                        'url': entry.get('url'), # Stream URL or Watch URL depending on extraction
-                        'webpage_url': entry.get('webpage_url'),
+                        'url': video_url, 
+                        'webpage_url': video_url,
                         'duration': entry.get('duration', 0),
                         'source': 'youtube',
-                        'thumbnail': entry.get('thumbnail')
+                        'thumbnail': entry.get('thumbnail') # A veces null en flat search
                      })
             else:
-                # Single Video
-                results.append({
+                 # Fallback (Single result usually not flat if direct URL, but valid)
+                 video_url = data.get('url')
+                 if video_url and len(video_url) == 11 and "." not in video_url:
+                     video_url = f"https://www.youtube.com/watch?v={video_url}"
+
+                 new_results.append({
                     'type': 'video',
                     'title': data.get('title', 'Unknown'),
-                    'url': data.get('url'),
-                    'webpage_url': data.get('webpage_url'),
+                    'url': video_url,
+                    'webpage_url': video_url,
                     'duration': data.get('duration', 0),
                     'source': 'youtube',
                     'thumbnail': data.get('thumbnail')
                 })
+            
+            # Guardar en Cache
+            results.extend(new_results)
+            self.search_cache[query] = results
                 
         except Exception as e:
             logger.error(f"YouTube Search Error: {e}")
