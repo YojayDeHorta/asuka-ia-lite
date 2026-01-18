@@ -35,7 +35,7 @@ class PlaylistCreate(BaseModel):
 @app.get("/api/search")
 async def search(q: str):
     try:
-        results = await core.search(q)
+        results = await core.search(q, limit=5)
         return results
     except Exception as e:
         logger.error(f"Search error: {e}")

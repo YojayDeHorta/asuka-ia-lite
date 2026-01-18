@@ -36,15 +36,14 @@ class MusicCore:
             except Exception as e:
                 logger.error(f"Error initializing Spotify: {e}")
 
-    async def search(self, query):
+    async def search(self, query, limit=None):
         """
         Busca canciones en YouTube o Spotify.
-        Retorna una lista de diccionarios:
-        [{'title': str, 'url': str (original), 'duration': int, 'source': 'youtube'|'spotify'}]
+        limit: Int - Si se especifica y es una búsqueda de texto, trae X resultados.
         """
         results = []
         
-        # 1. Spotify Handling
+        # 1. Spotify Handling (Sin cambios)
         if 'open.spotify.com' in query and self.sp:
             try:
                 track_names = []
@@ -61,8 +60,8 @@ class MusicCore:
                 for name in track_names:
                     results.append({
                         'type': 'query',
-                        'title': name, # Título provisional
-                        'url': query,  # URL de origen (Spotify)
+                        'title': name, 
+                        'url': query,
                         'duration': 0,
                         'source': 'spotify_query',
                         'thumbnail': track['album']['images'][0]['url'] if track['album']['images'] else None
@@ -72,10 +71,16 @@ class MusicCore:
                 logger.error(f"Spotify Search Error: {e}")
                 raise e
 
-        # 2. YouTube Search (Direct or Query)
+        # 2. YouTube Search
         try:
             loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(query, download=False))
+            
+            # Apply limit if text search
+            search_query = query
+            if limit and not query.startswith("http"):
+                 search_query = f"ytsearch{limit}:{query}"
+            
+            data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(search_query, download=False))
             
             if not data:
                 return []

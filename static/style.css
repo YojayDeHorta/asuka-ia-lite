@@ -167,7 +167,24 @@ header {
 }
 
 .track-action {
-    color: var(--text-sec);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-main);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.track-action:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
 }
 
 /* Player Bar */

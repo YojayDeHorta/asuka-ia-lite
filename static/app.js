@@ -368,7 +368,15 @@ document.getElementById("menu-toggle").onclick = () => {
 // Volume Control
 const volSlider = document.getElementById("vol-slider");
 if (volSlider) {
+    // Load saved volume
+    const savedVol = localStorage.getItem("asuka_volume");
+    if (savedVol !== null) {
+        audioPlayer.volume = parseFloat(savedVol);
+        volSlider.value = savedVol;
+    }
+
     volSlider.oninput = (e) => {
         audioPlayer.volume = e.target.value;
+        localStorage.setItem("asuka_volume", e.target.value);
     };
 }
