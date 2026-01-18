@@ -7,7 +7,7 @@
     <title>Asuka Web 🎵</title>
     <link rel="icon" type="image/png" href="asuka.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=11">
+    <link rel="stylesheet" href="style.css?v=12">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -305,31 +305,40 @@
 
     <!-- Auth Modal -->
     <div id="auth-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content glass" style="max-width:350px;">
-            <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:20px;">
-                <button class="tab-btn active" id="tab-login" onclick="switchAuthTab('login')" style="flex:1;">Iniciar
-                    Sesión</button>
-                <button class="tab-btn" id="tab-register" onclick="switchAuthTab('register')"
-                    style="flex:1;">Registrarse</button>
+        <div class="modal-content glass" style="max-width:380px; padding:30px;">
+            <div class="auth-header">
+                <i class="fa-solid fa-robot auth-icon"></i>
+                <h2 style="margin:0;">¡Identifícate!</h2>
+                <p style="font-size:0.9rem; opacity:0.7;">No tengo todo el día... 😒</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Iniciar Sesión</button>
+                <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Crear Cuenta</button>
             </div>
 
             <form id="auth-form" onsubmit="handleAuth(event)">
-                <input type="text" id="auth-user" placeholder="Usuario" required minlength="3" autocomplete="username"
-                    style="width:100%; padding:12px; margin-bottom:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:white; border-radius:5px;">
+                <div class="auth-input-container">
+                    <input type="text" id="auth-user" class="auth-input" placeholder="Usuario" required minlength="3"
+                        autocomplete="username">
+                    <i class="fa-solid fa-user auth-input-icon"></i>
+                </div>
 
-                <input type="password" id="auth-pass" placeholder="Contraseña (min 4 caracteres)" required minlength="4"
-                    autocomplete="current-password"
-                    style="width:100%; padding:12px; margin-bottom:20px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:white; border-radius:5px;">
+                <div class="auth-input-container">
+                    <input type="password" id="auth-pass" class="auth-input" placeholder="Contraseña" required
+                        minlength="4" autocomplete="current-password">
+                    <i class="fa-solid fa-lock auth-input-icon"></i>
+                </div>
 
-                <button type="submit" class="tab-btn active" style="width:100%; justify-content:center;">Entrar</button>
+                <button type="submit" class="auth-submit-btn">Entrar</button>
             </form>
             <p id="auth-error"
-                style="color:#ff4757; text-align:center; font-size:0.9rem; margin-top:10px; display:none;"></p>
+                style="color:#ff4757; text-align:center; font-size:0.9rem; margin-top:15px; display:none;"></p>
         </div>
     </div>
 
     <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=32"></script>
 </body>
 
 </html>

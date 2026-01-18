@@ -830,8 +830,8 @@ document.getElementById("auth-modal").addEventListener("click", (e) => {
 
 function switchAuthTab(tab) {
     currentAuthTab = tab;
-    document.getElementById("tab-login").className = `tab-btn ${tab === 'login' ? 'active' : ''}`;
-    document.getElementById("tab-register").className = `tab-btn ${tab === 'register' ? 'active' : ''}`;
+    document.getElementById("tab-login").className = `auth-tab ${tab === 'login' ? 'active' : ''}`;
+    document.getElementById("tab-register").className = `auth-tab ${tab === 'register' ? 'active' : ''}`;
     document.querySelector("#auth-form button").innerText = (tab === 'login') ? "Entrar" : "Crear Cuenta";
     document.getElementById("auth-error").style.display = "none";
 }
