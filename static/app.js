@@ -231,7 +231,7 @@ async function playTrack(track) {
         currentIndex = 0;
         await loadAndPlay(currentQueue[currentIndex]);
     } else {
-        // Optional: Toast "Added to queue"
+        prefetchNext();
     }
 }
 
@@ -465,12 +465,13 @@ async function fetchNextRadioSong(isStart = false) {
             itemsToAdd.forEach(item => currentQueue.push(item));
             updateQueueUI();
 
-            // If stopped, play immediately
             if (audioPlayer.paused && (currentIndex === -1 || currentIndex === currentQueue.length - itemsToAdd.length - 1)) {
                 if (currentIndex === -1) currentIndex = 0;
                 else currentIndex++;
 
                 loadAndPlay(currentQueue[currentIndex]);
+            } else {
+                prefetchNext();
             }
         }
 
