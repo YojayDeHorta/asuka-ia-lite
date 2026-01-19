@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asuka Lite</title>
+
+    <!-- PWA Config -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Asuka Music">
+    <link rel="apple-touch-icon" href="asuka.png">
+
+    <link rel="stylesheet" href="style.css?v=27">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Register Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(reg => {
+                    console.log('SW Registered:', reg.scope);
+                }).catch(err => {
+                    console.log('SW Fail:', err);
+                });
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <img src="asuka.png" alt="Asuka"
+                    style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;"> Asuka
+                <button id="menu-close" class="mobile-only"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="active" onclick="showSection('home')"><i class="fa-solid fa-house"></i> Inicio</a>
+                <a href="#" onclick="showSection('search')"><i class="fa-solid fa-search"></i> Buscar</a>
+                <a href="#" onclick="showSection('library')"><i class="fa-solid fa-book"></i> Biblioteca</a>
+                <a href="#" onclick="showSection('queue')"><i class="fa-solid fa-list-ol"></i> Cola</a>
+            </nav>
+            <div class="playlists-section">
+                <h3>Mis Playlists</h3>
+                <ul id="playlist-list">
+                    <!-- JS Injected -->
+                </ul>
+            </div>
+
+
+
+            <div id="user-info-area"
+                style="margin-top:auto; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1); display:none;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div
+                        style="width:35px; height:35px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div style="flex:1; overflow:hidden;">
+                        <div id="user-display-name"
+                            style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">User
+                        </div>
+                        <div style="font-size:0.7rem; color:#888;">Conectado</div>
+                    </div>
+                    <button onclick="logout()" title="Cerrar Sesión"
+                        style="background:none; border:none; color:#ff4757; cursor:pointer;"><i
+                            class="fa-solid fa-sign-out-alt"></i></button>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <button id="menu-toggle" class="mobile-only"><i class="fa-solid fa-bars"></i></button>
+                <div class="search-bar-container">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="global-search" placeholder="¿Qué quieres escuchar hoy?">
+                </div>
+                <div class="header-right" style="display:flex; align-items:center;">
+                    <button id="btn-login" onclick="openAuthModal()"
+                        style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer; padding:10px;">
+                        <i class="fa-solid fa-user-circle"></i>
+                    </button>
+                    <button id="btn-settings" onclick="openSettingsModal()"
+                        style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer; padding:10px;">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div id="content-area">
+                <!-- Dynamic Content -->
+                <div id="home-view" class="view active">
+                    <h1>Buenos días ☀️</h1>
+                    <div class="cards-grid" id="recommendations-grid">
+                        <!-- Interactive Cards -->
+                        <!-- Custom Card (First) -->
+                        <div class="card glass" onclick="openCustomRadioModal()">
+                            <div class="card-img" style="background: linear-gradient(135deg, #a55eea, #45aaf2);">✨</div>
+                            <h4>Personalizada</h4>
+                            <p>Tú eliges el tema</p>
+                        </div>
+
+                        <!-- Asuka Card (Second) -->
+                        <div class="card glass" onclick="startRadio('AUTO')">
+                            <div class="card-img" style="background: linear-gradient(135deg, #FF6F61, #D83A56);"><i
+                                    class="fa-solid fa-robot" style="color:white; font-size: 24px;"></i></div>
+                            <h4>Modo Asuka</h4>
+                            <p>Mix Inteligente</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Tendencias')">
+                            <div class="card-img" style="background-color: #ff6b6b">🔥</div>
+                            <h4>Tendencias</h4>
+                            <p>Lo más escuchado</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Rock')">
+                            <div class="card-img" style="background-color: #4ecdc4">🎸</div>
+                            <h4>Rock Mix</h4>
+                            <p>Energía pura</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Lofi')">
+                            <div class="card-img" style="background-color: #ffe66d">☕</div>
+                            <h4>Lofi Study</h4>
+                            <p>Relajación y estudio</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Gaming')">
+                            <div class="card-img" style="background-color: #a35ddf">🎮</div>
+                            <h4>Gaming OST</h4>
+                            <p>Música épica</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Night Drive')">
+                            <div class="card-img" style="background-color: #2c3e50">🌃</div>
+                            <h4>Night Drive</h4>
+                            <p>Synthwave & Chill</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('J-Pop')">
+                            <div class="card-img" style="background-color: #ff0055">🌸</div>
+                            <h4>J-Pop</h4>
+                            <p>Anime Vibes</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Vallenato')">
+                            <div class="card-img" style="background-color: #f1c40f">🪗</div>
+                            <h4>Vallenato</h4>
+                            <p>Sentimiento puro</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('City Pop')">
+                            <div class="card-img" style="background-color: #54a0ff">🏙️</div>
+                            <h4>City Pop</h4>
+                            <p>Japan 80s Vibe</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Electronica')">
+                            <div class="card-img" style="background-color: #00d2d3">⚡</div>
+                            <h4>Electrónica</h4>
+                            <p>Beats & Bass</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Salsa')">
+                            <div class="card-img" style="background-color: #ff4757">💃</div>
+                            <h4>Salsa</h4>
+                            <p>Para bailar</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Metal')">
+                            <div class="card-img" style="background-color: #2f3542">🤘</div>
+                            <h4>Metal</h4>
+                            <p>Intensidad máxima</p>
+                        </div>
+                        <div class="card glass" onclick="startRadio('Piano')">
+                            <div class="card-img" style="background-color: #576574">🎹</div>
+                            <h4>Piano</h4>
+                            <p>Relax & Focus</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div id="results-view" class="view" style="display: none;">
+                    <h1>Resultados</h1>
+                    <div class="list-layout" id="search-results"></div>
+                </div>
+
+                <div id="queue-view" class="view" style="display: none;">
+                    <h1>Cola de Reproducción</h1>
+                    <div class="list-layout" id="queue-list"></div>
+                </div>
+
+                <div id="library-view" class="view" style="display: none;">
+                    <h1>Tu Biblioteca</h1>
+
+                    <div class="library-tabs">
+                        <button class="tab-btn active" id="tab-history"
+                            onclick="switchLibraryTab('history')">Historial</button>
+                        <button class="tab-btn" id="tab-likes" onclick="switchLibraryTab('likes')">Me Gusta ❤️</button>
+                    </div>
+
+                    <div class="list-layout" id="library-list"></div>
+                    <div class="list-layout" id="favorites-list" style="display: none;"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Player -->
+
+        <!-- Player Bar -->
+        <div class="player-bar">
+            <div class="now-playing">
+                <img id="np-img" src="https://dummyimage.com/150x150/000/fff&text=Asuka" alt="Album Art">
+                <div class="np-info">
+                    <h4 id="np-title">Esperando...</h4>
+                    <p id="np-artist">Asuka Web</p>
+                </div>
+                <!-- Like Button -->
+                <!-- Like Button -->
+                <button id="like-btn" onclick="toggleLike()">
+                    <i class="fa-regular fa-heart"></i>
+                </button>
+            </div>
+
+            <div class="player-controls">
+                <div class="control-buttons">
+                    <!-- Moved Radio Button Here -->
+                    <button id="btn-radio-mode" title="Modo Radio IA" style="font-size: 16px;">
+                        <i class="fa-solid fa-robot"></i>
+                    </button>
+
+                    <button id="btn-shuffle"><i class="fa-solid fa-shuffle"></i></button>
+                    <button id="btn-prev"><i class="fa-solid fa-backward-step"></i></button>
+                    <button class="play-btn" id="btn-play"><i class="fa-solid fa-play"></i></button>
+                    <button id="btn-next"><i class="fa-solid fa-forward-step"></i></button>
+                    <button id="btn-repeat"><i class="fa-solid fa-repeat"></i></button>
+                </div>
+                <div class="progress-container">
+                    <span id="curr-time">0:00</span>
+                    <div class="progress-bar-wrapper" id="progress-wrapper">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <span id="tot-time">0:00</span>
+                </div>
+            </div>
+
+            <div class="volume-controls">
+                <button id="btn-queue" onclick="toggleQueue()" class="btn-queue-toggle" title="Cola de Reproducción">
+                    <i class="fa-solid fa-list"></i>
+                    <span id="queue-count" class="queue-count-badge">0</span>
+                </button>
+
+                <div class="vol-wrapper" style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-volume-high"></i>
+                    <input type="range" min="0" max="1" step="0.1" value="1" id="vol-slider">
+                </div>
+
+                <audio id="audio-player"></audio>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="text-align: left;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0;">⚙️ Configuración</h2>
+                <button onclick="closeSettingsModal()"
+                    style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer;"><i
+                        class="fa-solid fa-times"></i></button>
+            </div>
+
+            <!-- User ID -->
+            <div style="margin-bottom: 25px;">
+                <label style="display:block; color:#888; margin-bottom:5px; font-size:0.9rem;">Tu ID de Usuario</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="settings-uid" readonly value="..."
+                        style="flex:1; padding:10px; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff;">
+                    <button class="tab-btn" onclick="copyUserID()" title="Copiar"><i
+                            class="fa-solid fa-copy"></i></button>
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <div
+                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; padding:10px; background:rgba(255,255,255,0.05); border-radius:10px;">
+                <div>
+                    <h4 style="margin:0;">Comentarios de Asuka</h4>
+                    <p style="margin:0; font-size:0.8rem; color:#888;">Escuchar intro antes de cada canción</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setting-intros" checked onchange="saveSettings()">
+                    <span class="slider round"></span>
+                </label>
+                </label>
+            </div>
+
+            <!-- Theme Selector -->
+            <div style="margin-bottom: 15px;">
+                <label style="display:block; color:#888; margin-bottom:10px; font-size:0.9rem;">Color del Tema</label>
+                <div id="theme-colors" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:10px;">
+                    <!-- Generated by JS -->
+                </div>
+
+
+            </div>
+
+            <div style="text-align:center; margin-top:30px;">
+                <p style="font-size:0.8rem; color:#666;">Asuka Lite v1.0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Radio Modal -->
+    <div id="custom-radio-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass">
+            <h2>✨ Radio Personalizada</h2>
+            <p>Escribe un artista, género o estado de ánimo:</p>
+            <input type="text" id="custom-mood-input" placeholder="Ej: Shakira, Cumbia, Triste, Coding..."
+                autocomplete="off">
+            <div class="modal-buttons">
+                <button class="tab-btn" onclick="closeCustomRadioModal()">Cancelar</button>
+                <button class="tab-btn active" onclick="submitCustomRadio()">Iniciar Radio</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-width:380px; padding:30px;">
+            <div class="auth-header">
+                <i class="fa-solid fa-robot auth-icon"></i>
+                <h2 style="margin:0;">¡Identifícate!</h2>
+                <p style="font-size:0.9rem; opacity:0.7;">No tengo todo el día... 😒</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Iniciar Sesión</button>
+                <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Crear Cuenta</button>
+            </div>
+
+            <form id="auth-form" onsubmit="handleAuth(event)">
+                <div class="auth-input-container">
+                    <input type="text" id="auth-user" class="auth-input" placeholder="Usuario" required minlength="3"
+                        autocomplete="username">
+                    <i class="fa-solid fa-user auth-input-icon"></i>
+                </div>
+
+                <div class="auth-input-container">
+                    <input type="password" id="auth-pass" class="auth-input" placeholder="Contraseña" required
+                        minlength="4" autocomplete="current-password">
+                    <i class="fa-solid fa-lock auth-input-icon"></i>
+                </div>
+
+                <button type="submit" class="auth-submit-btn">Entrar</button>
+            </form>
+            <p id="auth-error"
+                style="color:#ff4757; text-align:center; font-size:0.9rem; margin-top:15px; display:none;"></p>
+        </div>
+    </div>
+
+
+
+    <!-- Queue Panel -->
+    <div id="queue-panel" class="queue-panel">
+        <div class="queue-header">
+            <h3><i class="fa-solid fa-list-music"></i> Cola de Reproducción</h3>
+            <div style="display:flex; gap:10px;">
+                <button onclick="clearQueue()" class="queue-action-btn" title="Limpiar Cola">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                <button onclick="toggleQueue()" class="queue-action-btn" title="Cerrar">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div id="queue-panel-list" class="queue-list">
+            <!-- JS Populated -->
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="confirm-overlay">
+        <div class="confirm-box">
+            <i class="fa-solid fa-circle-question confirm-icon"></i>
+            <p id="confirm-msg" class="confirm-msg">¿Estás seguro?</p>
+            <div class="confirm-actions">
+                <button id="btn-confirm-cancel" class="btn-confirm-action btn-confirm-cancel">Cancelar</button>
+                <button id="btn-confirm-ok" class="btn-confirm-action btn-confirm-ok">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
+    <script src="app.js?v=65"></script>
+</body>
+
+</html>

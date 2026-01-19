@@ -8,3 +8,6 @@ ffmpeg-python
 PyNaCl
 Pillow
 spotipy
+fastapi
+uvicorn
+aiofiles

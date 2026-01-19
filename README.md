@@ -5,6 +5,8 @@
 ## 🚀 Features
 
 -   🎵 **Music Player**: High-quality playback from YouTube with queue management (`!play`, `!skip`, `!queue`).
+-   🌐 **Web Player (PWA)**: Full-featured web interface with Media Session support, visual queue, and installable as an App.
+-   🚀 **High Performance**: Optimized search engine with intelligent caching and fast-extraction for low-latency results.
 -   💬 **AI Chat**: Intelligent and sarcastic conversation powered by Gemini Pro (`!chat`).
 -   🎧 **Smart DJ**: Continuous, context-aware music playback with intros (`!dj`).
 -   🗣️ **Voice Responses**: Text-to-Speech responses with an anime-style voice (`!habla`).
