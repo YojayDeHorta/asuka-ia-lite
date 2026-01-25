@@ -1249,3 +1249,72 @@ function updateNowPlaying(title, artist, cover) {
 
 // Initialize
 setupMediaSession();
+
+
+// --- CHAT LOGIC ---
+function toggleChat() {
+    const panel = document.getElementById("chat-panel");
+    panel.classList.toggle("active");
+    if (panel.classList.contains("active")) {
+        // Focus input
+        setTimeout(() => document.getElementById("chat-input").focus(), 100);
+        scrollToBottom();
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById("chat-input");
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    // 1. Render User Message
+    addChatBubble(msg, "user");
+    input.value = "";
+    scrollToBottom();
+
+    // 2. Loading State (Bot typing...)
+    const loadingId = addChatBubble("...", "bot");
+    scrollToBottom();
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg })
+        });
+
+        const data = await res.json();
+
+        // Remove loading bubble
+        document.getElementById(loadingId).remove();
+
+        // Render Bot Message
+        addChatBubble(data.response, "bot");
+
+    } catch (e) {
+        document.getElementById(loadingId).remove();
+        addChatBubble("Error de conexión. 🤕", "bot");
+    }
+
+    scrollToBottom();
+}
+
+function addChatBubble(text, type) {
+    const container = document.getElementById("chat-messages");
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${type}`;
+    bubble.innerText = text;
+    const id = "msg-" + Date.now();
+    bubble.id = id;
+    container.appendChild(bubble);
+    return id;
+}
+
+function scrollToBottom() {
+    const container = document.getElementById("chat-messages");
+    container.scrollTop = container.scrollHeight;
+}
+
+document.getElementById("chat-input")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") sendChatMessage();
+});

@@ -1027,6 +1027,159 @@ input:checked+.slider:before {
     box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
 }
 
-.btn-confirm-ok:hover {
-    filter: brightness(1.2);
+/* --- Chat Panel --- */
+.chat-panel {
+    position: fixed;
+    right: 90px;
+    bottom: 100px;
+    width: 350px;
+    height: 500px;
+    background: rgba(20, 20, 25, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    z-index: 4000;
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-panel.active {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.chat-header {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 15px 15px 0 0;
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--primary);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chat-close-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+}
+
+.chat-close-btn:hover {
+    color: #fff;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    max-width: 80%;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.chat-bubble.bot {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ddd;
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+.chat-bubble.user {
+    background: var(--primary);
+    color: #fff;
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-input-area {
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input-area input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 20px;
+    color: #fff;
+    outline: none;
+}
+
+.chat-input-area button {
+    background: var(--primary);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Mobile Chat specific */
+@media (max-width: 768px) {
+    .chat-panel {
+        width: 100%;
+        height: 100%;
+        /* Full screen overlay */
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 0;
+        background: #121212;
+        transform: translateY(100%);
+        z-index: 6000;
+    }
+
+    .chat-panel.active {
+        transform: translateY(0);
+    }
+
+    .btn-chat-toggle {
+        /* Mobile Position: Left of player controls? 
+           Parent .volume-controls is absolute positioned.
+           Let's move this button specifically.
+        */
+        position: fixed;
+        /* Or absolute relative to player bar */
+        left: 20px;
+        bottom: 55px;
+        /* Aligned with queue button roughly */
+        z-index: 200;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+    }
 }

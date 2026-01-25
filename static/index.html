@@ -246,6 +246,10 @@
             </div>
 
             <div class="volume-controls">
+                <button id="btn-chat" onclick="toggleChat()" class="btn-queue-toggle btn-chat-toggle"
+                    title="Chat con Asuka">
+                    <i class="fa-solid fa-comment-dots"></i>
+                </button>
                 <button id="btn-queue" onclick="toggleQueue()" class="btn-queue-toggle" title="Cola de Reproducción">
                     <i class="fa-solid fa-list"></i>
                     <span id="queue-count" class="queue-count-badge">0</span>
@@ -381,6 +385,23 @@
         </div>
     </div>
 
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="chat-panel">
+        <div class="chat-header">
+            <h3><i class="fa-solid fa-comments"></i> Asuka Chat</h3>
+            <button onclick="toggleChat()" class="chat-close-btn"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="chat-bubble bot">
+                Hola. ¿Qué quieres? 😒
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Escribe algo..." autocomplete="off">
+            <button onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -397,7 +418,7 @@
     </div>
 
     <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
-    <script src="app.js?v=65"></script>
+    <script src="app.js?v=66"></script>
 </body>
 
 </html>

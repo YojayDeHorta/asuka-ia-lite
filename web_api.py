@@ -250,6 +250,43 @@ async def login(user: UserAuth):
          raise HTTPException(status_code=401, detail="Invalid username or password")
          
     return {"id": db_id, "username": user.username}
+
+# --- CHAT SYSTEM ---
+class ChatRequest(BaseModel):
+    message: str
+    context: str | None = None # Optional extra context (e.g. current song)
+
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Get Memory
+        memories = database.get_memory(user_id)
+        mem_text = ""
+        if memories:
+             mem_text = "Sabes esto del usuario: " + ", ".join(memories) + "."
+        
+        # 2. Build Prompt
+        prompt = (
+            f"Eres Asuka, una asistente de música sarcástica y 'Tsundere' (anime). "
+            f"{mem_text} "
+            f"El usuario dice: '{req.message}'. "
+            "Responde de forma corta (máx 2 frases), con personalidad. "
+        )
+        import google.generativeai as genai
+        genai.configure(api_key=config.GEMINI_KEY)
+        model = genai.GenerativeModel(config.AI_MODEL) # Use config model
+        
+        response = await model.generate_content_async(prompt)
+        return {"response": response.text.strip()}
+
+    except Exception as e:
+        logger.error(f"Chat Error: {e}")
+        return {"response": "Hmph. No te escuché. (Error de IA)"}
+
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
 import os
