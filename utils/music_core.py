@@ -1,4 +1,5 @@
 import yt_dlp
+import os
 import config
 from utils.logger import setup_logger
 import asyncio
@@ -238,9 +239,19 @@ class MusicCore:
                 f" Esta es la PRIMERA canción de la sesión. Di algo como '{start_msg}'."
             )
 
+        import datetime
+        now = datetime.datetime.now()
+        hour = now.hour
+        time_context = "Madrugada (Todos duermen)"
+        if 6 <= hour < 12: time_context = "Mañana (Energía)"
+        elif 12 <= hour < 19: time_context = "Tarde (Sol y Relax)"
+        elif 19 <= hour <= 23: time_context = "Noche (Oscuridad)"
+
         prompt = (
             f"{prompt_instruction} "
-            "Además, genera una intro corta (máx 20 palabras) con personalidad de 'locutora Tsundere de anime'. "
+            f"CONTEXTO TEMPORAL: {time_context}. "
+            "COMENTARIO OBLIGATORIO: Di un dato curioso real o tu opinión personal (estilo Tsundere) sobre la canción que elijas. Demuestra que sabes de música. "
+            "Genera una intro corta (máx 25 palabras). "
             "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
         )
         
