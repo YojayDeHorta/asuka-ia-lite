@@ -447,8 +447,12 @@ function startRadio(mood) {
 // Global Radio Mood
 let currentRadioMood = null;
 
+// Global Counter for Frequency
+let songsSinceLastIntro = 999; // Init high to ensure first song gets intro if enabled
+
 async function fetchNextRadioSong(isStart = false) {
     try {
+        if (isStart) songsSinceLastIntro = 999; // Force intro on start
         // Collect history for context (Filter out intros)
         const history = currentQueue
             .filter(t => !t.is_intro && t.title !== "🎙️ Asuka")
@@ -456,7 +460,20 @@ async function fetchNextRadioSong(isStart = false) {
             .map(t => t.title);
 
         const savedIntros = localStorage.getItem("asuka_enable_intros");
-        const enableIntros = (savedIntros === null || savedIntros === "true");
+        let enableIntrosGlobal = (savedIntros === null || savedIntros === "true");
+
+        // Frequency Logic
+        const savedFreq = parseInt(localStorage.getItem("asuka_intro_freq") || "3");
+        let enableIntros = enableIntrosGlobal;
+
+        if (enableIntrosGlobal) {
+            if (songsSinceLastIntro >= savedFreq) {
+                enableIntros = true;
+                // We reset specific counter LATER if intro actually plays
+            } else {
+                enableIntros = false;
+            }
+        }
 
         const res = await authenticatedFetch(`${API_URL}/radio/next`, {
             method: 'POST',
@@ -483,8 +500,11 @@ async function fetchNextRadioSong(isStart = false) {
                 duration: 5, // Estimate
                 is_intro: true
             });
+            songsSinceLastIntro = 1; // Reset to 1 (this song counts as the first of the new block)
+        } else {
+            // Intro WAS requested but not returned (or not requested)
+            songsSinceLastIntro++;
         }
-
         // 2. Song
         if (data.song_data) {
             itemsToAdd.push({
@@ -809,6 +829,10 @@ function openSettingsModal() {
         document.getElementById("settings-uid").value = ASUKA_UID;
         const savedIntros = localStorage.getItem("asuka_enable_intros");
         document.getElementById("setting-intros").checked = (savedIntros === null || savedIntros === "true");
+
+        const savedFreq = localStorage.getItem("asuka_intro_freq") || "3";
+        document.getElementById("setting-intro-freq").value = savedFreq;
+        document.getElementById("freq-display").innerText = savedFreq;
         // Refresh Theme UI
         initTheme();
     }
@@ -822,6 +846,9 @@ function closeSettingsModal() {
 function saveSettings() {
     const intros = document.getElementById("setting-intros").checked;
     localStorage.setItem("asuka_enable_intros", intros);
+
+    const freq = document.getElementById("setting-intro-freq").value;
+    localStorage.setItem("asuka_intro_freq", freq);
     // Reload radio logic if needed, but for now just saving for next fetch is enough.
 }
 

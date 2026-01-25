@@ -13,6 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Asuka Music">
     <link rel="apple-touch-icon" href="asuka.png">
+    <link rel="icon" type="image/png" href="asuka.png">
 
     <link rel="stylesheet" href="style.css?v=27">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
@@ -299,6 +300,21 @@
                     <span class="slider round"></span>
                 </label>
                 </label>
+            </div>
+
+            <!-- Frequency Setting -->
+            <div
+                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; padding:10px; background:rgba(255,255,255,0.05); border-radius:10px;">
+                <div>
+                    <h4 style="margin:0;">Frecuencia</h4>
+                    <p style="margin:0; font-size:0.8rem; color:#888;">Hablar cada X canciones</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="freq-display" style="font-weight:bold; color:var(--primary);">3</span>
+                    <input type="range" id="setting-intro-freq" min="1" max="5" value="3" step="1"
+                        oninput="document.getElementById('freq-display').innerText = this.value"
+                        onchange="saveSettings()" style="width:80px; accent-color:var(--primary);">
+                </div>
             </div>
 
             <!-- Theme Selector -->
