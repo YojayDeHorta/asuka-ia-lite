@@ -162,6 +162,8 @@ class MusicCore:
                 return None
 
             if 'entries' in data:
+                if not data['entries']: # Empty list check
+                    return None
                 data = data['entries'][0]
                 
             return {
