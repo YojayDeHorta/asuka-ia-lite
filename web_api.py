@@ -252,6 +252,9 @@ async def login(user: UserAuth):
     return {"id": db_id, "username": user.username}
 
 # --- CHAT SYSTEM ---
+# Global in-memory sessions: {user_id: chat_session_object}
+web_chat_sessions = {}
+
 class ChatRequest(BaseModel):
     message: str
     context: str | None = None # Optional extra context (e.g. current song)
@@ -263,29 +266,47 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
         user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
 
-        # 1. Get Memory
-        memories = database.get_memory(user_id)
-        mem_text = ""
-        if memories:
-             mem_text = "Sabes esto del usuario: " + ", ".join(memories) + "."
-        
-        # 2. Build Prompt
-        prompt = (
-            f"Eres Asuka, una asistente de música sarcástica y 'Tsundere' (anime). "
-            f"{mem_text} "
-            f"El usuario dice: '{req.message}'. "
-            "Responde de forma corta (máx 2 frases), con personalidad. "
-        )
         import google.generativeai as genai
         genai.configure(api_key=config.GEMINI_KEY)
-        model = genai.GenerativeModel(config.AI_MODEL) # Use config model
+        model = genai.GenerativeModel(config.AI_MODEL)
+
+        # Get or Create Session
+        if user_id not in web_chat_sessions:
+            # 1. Get Memory (Only injected at start of session context)
+            memories = database.get_memory(user_id)
+            mem_text = ""
+            if memories:
+                 mem_text = "Sabes esto del usuario: " + ", ".join(memories) + "."
+            
+            system_instruction = (
+                f"Eres Asuka, una asistente de música sarcástica y 'Tsundere' (anime). "
+                f"{mem_text} "
+                "Responde de forma corta (máx 2 frases), con personalidad. "
+            )
+            
+            # Initialize with system instruction as the first history item if supported, 
+            # OR just keep it in mind. For Gemini API python, we can use history=[]
+            # and send the system prompt as the first message or configure it in model?
+            # Simpler: Send system prompt as first context.
+            history = [
+                {"role": "user", "parts": [system_instruction]},
+                {"role": "model", "parts": ["Entendido. Soy Asuka. ¿Qué quieres? 😒"]}
+            ]
+            web_chat_sessions[user_id] = model.start_chat(history=history)
+            logger.info(f"New Web Chat Session for {user_id}")
+
+        session = web_chat_sessions[user_id]
         
-        response = await model.generate_content_async(prompt)
+        # Send Message
+        response = await session.send_message_async(req.message)
         return {"response": response.text.strip()}
 
     except Exception as e:
         logger.error(f"Chat Error: {e}")
-        return {"response": "Hmph. No te escuché. (Error de IA)"}
+        # Invalidate session on error to avoid stuck states
+        if user_id in web_chat_sessions:
+            del web_chat_sessions[user_id]
+        return {"response": "Hmph. Me distraje. Repítelo. (Error de sesión)"}
 
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
