@@ -124,7 +124,7 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         
         older = []
         try:
-             raw_history = database.get_recent_songs(guild_id, limit=20) 
+             raw_history = database.get_recent_songs(guild_id, limit=50) 
              older = raw_history
         except Exception as db_e:
              logger.error(f"Failed to fetch DB history: {db_e}")

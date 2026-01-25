@@ -192,39 +192,48 @@ class MusicCore:
         mood: str|None - Si se especifica (ej: "Rock", "Lofi"), fuerza ese estilo.
         enable_intros: bool - Si es False, no genera intro (audio/texto vacío).
         """
+        import random 
 
         # 1. Preparar Prompt
         immediate_context = ", ".join(recent_history) if recent_history else "Ninguna (Empieza algo nuevo)"
-        older_context = ", ".join(older_history) if older_history else "Sin historial previo"
+        
+        # KEY CHANGE: Treat older_history as NEGATIVE PROMPT (Avoid List)
+        # We only take the titles to save tokens, assuming formats like "Artist - Title"
+        avoid_list = ", ".join(older_history) if older_history else "Ninguna"
         
         prompt_instruction = ""
+        
+        # Inject Randomness to avoid determinism (e.g. always starting with same song)
+        random_seed = random.choice(["Sorprende con una joya oculta", "Algo clásico pero no cliché", "Una novedad reciente", "Algo experimental", " Energía pura"])
         
         if mood:
             # MOOD OVERRIDE
             prompt_instruction = (
                 f"Eres un DJ experto. El usuario ha pedido una sesión de estilo: **{mood}**.\n"
-                f"IGNORA cualquier historial previo que no encaje con {mood}. \n"
-                f"Tu única misión es poner la mejor canción posible de género {mood}.\n"
-                f"TENDENCIA RECIENTE: [{immediate_context}] (Úsalas solo para no repetir)."
+                f"FACTOR SORPRESA: {random_seed}. \n"
+                f"LISTA NEGRA (Prohibido repetir): [{avoid_list}].\n"
+                f"TENDENCIA RECIENTE: [{immediate_context}].\n"
+                f"Tu misión: Poner la mejor canción de {mood} que NO esté en la lista negra ni sea repetitiva."
             )
+            if is_start:
+                prompt_instruction += " NO elijas la canción más obvia o popular (ej: No pongas 'Ride on Time' si es City Pop, busca algo más). Se original."
         else:
             # STANDARD SMART DJ
             prompt_instruction = (
-                f"Eres un DJ experto. "
-                f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
-                f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
+                f"Eres un DJ experto (Asuka). "
+                f"TENDENCIA ACTUAL: [{immediate_context}]. "
+                f"LISTA NEGRA (Ya sonaron hace poco): [{avoid_list}]. "
+                f"FACTOR ALEATORIO: {random_seed}. "
                 
                 "Tu tarea es elegir la siguiente canción. "
-                "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
-                "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
-                "IMPORTANTE: NO REPITAS ninguna canción del historial reciente."
+                "REGLA 1: Si la TENDENCIA cambia de género, síguela. "
+                "REGLA 2: JAMÁS repitas una canción de la LISTA NEGRA."
             )
 
         if is_start:
              start_msg = "Arrancamos con esta" if not mood else f"Iniciando modo {mood}"
              prompt_instruction += (
-                f" Esta es la PRIMERA canción de la sesión. "
-                f"Di algo como '{start_msg}'. ¡Genera HYPE!"
+                f" Esta es la PRIMERA canción de la sesión. Di algo como '{start_msg}'."
             )
 
         prompt = (
