@@ -285,6 +285,15 @@ class MusicCore:
         # 4. Resolver Canción
         song_data = await self.get_stream_url(song_name)
         
+        # Logic Fix: If song failed (None), DISCARD the intro too. 
+        # Prevents "Intro -> Intro -> Intro" chains when songs fail.
+        if not song_data:
+            if intro_audio_path and os.path.exists(intro_audio_path):
+                try:
+                    os.remove(intro_audio_path)
+                except: pass
+            intro_audio_path = None
+
         return {
             'song_query': song_name,
             'intro_text': intro if enable_intros else "", # Hide text if disabled
