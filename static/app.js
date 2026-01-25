@@ -1304,7 +1304,8 @@ function addChatBubble(text, type) {
     const bubble = document.createElement("div");
     bubble.className = `chat-bubble ${type}`;
     bubble.innerText = text;
-    const id = "msg-" + Date.now();
+    // Fix: Date.now() can be identical for consecutive synchronous calls, causing duplicate IDs.
+    const id = "msg-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
     bubble.id = id;
     container.appendChild(bubble);
     return id;
