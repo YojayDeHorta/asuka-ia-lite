@@ -1183,3 +1183,32 @@ input:checked+.slider:before {
         height: 30px;
     }
 }
+/* --- Scrollbar Customization --- */
+/* Global Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Specific fix for Chat Panel to ensure it matches */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.queue-list::-webkit-scrollbar {
+    width: 6px;
+}
