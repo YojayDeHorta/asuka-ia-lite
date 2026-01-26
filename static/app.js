@@ -1239,15 +1239,24 @@ function showToast(message, type = 'info', duration = 3000) {
 }
 
 // --- Global Click Listener (Close Queue on Outside Click) ---
+// --- Global Click Listener (Close Queue/Sidebar on Outside Click) ---
 document.addEventListener('click', (e) => {
+    // 1. Queue Sidebar
     const queuePanel = document.getElementById('queue-panel');
     const queueBtn = document.getElementById('btn-queue');
-
-    // If panel is active
     if (queuePanel && queuePanel.classList.contains('active')) {
-        // If click is NOT on the panel AND NOT on the button (or its children)
         if (!queuePanel.contains(e.target) && !queueBtn.contains(e.target)) {
             toggleQueue();
+        }
+    }
+
+    // 2. Main Menu Sidebar (Mobile)
+    const sidebar = document.getElementById('sidebar');
+    const menuToggle = document.getElementById('menu-toggle');
+    if (sidebar && sidebar.classList.contains('active')) {
+        // If click is outside sidebar AND outside the toggle button
+        if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+            sidebar.classList.remove("active");
         }
     }
 });
