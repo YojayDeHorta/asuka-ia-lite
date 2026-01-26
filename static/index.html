@@ -390,9 +390,14 @@
             <p>Escribe un nombre para tu lista:</p>
             <input type="text" id="new-playlist-name" class="modal-input" placeholder="Ej: Favoritos, Gym, Triste..."
                 autocomplete="off">
+
+            <p style="margin-top:15px;">🔗 Importar de YouTube (Opcional):</p>
+            <input type="text" id="new-playlist-url" class="modal-input"
+                placeholder="https://www.youtube.com/playlist?list=..." autocomplete="off" oninput="checkImportInput()">
             <div class="modal-buttons">
                 <button class="tab-btn" onclick="closeCreatePlaylistModal()">Cancelar</button>
-                <button class="tab-btn active" onclick="submitCreatePlaylist()">Crear</button>
+                <button class="tab-btn active" id="btn-create-playlist-submit"
+                    onclick="submitCreatePlaylist()">Crear</button>
             </div>
         </div>
     </div>

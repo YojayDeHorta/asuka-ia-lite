@@ -1526,26 +1526,79 @@ function closeCreatePlaylistModal() {
     document.getElementById("new-playlist-name").value = "";
 }
 
+
+function checkImportInput() {
+    const url = document.getElementById("new-playlist-url").value.trim();
+    const btn = document.getElementById("btn-create-playlist-submit");
+    if (url) {
+        btn.innerText = "Importar";
+        btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Importar`;
+    } else {
+        btn.innerText = "Crear";
+    }
+}
+
 async function submitCreatePlaylist() {
-    const name = document.getElementById("new-playlist-name").value.trim();
+    const name = document.getElementById("new-playlist-name").value;
+    const url = document.getElementById("new-playlist-url").value.trim();
+
     if (!name) return;
 
-    try {
-        // Create empty playlist
-        const res = await authenticatedFetch(`${API_URL}/playlists`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, songs: [] })
-        });
+    const btn = document.getElementById("btn-create-playlist-submit");
+    const originalText = btn.innerHTML;
 
-        if (!res.ok) throw new Error("Error creando playlist");
+    if (url) {
+        // Import Mode
+        btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div> Importando...';
+        btn.disabled = true;
 
-        showToast(`Playlist "${name}" creada`, "success");
-        closeCreatePlaylistModal();
-        loadPlaylists();
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/import`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, url: url })
+            });
 
-    } catch (e) {
-        showToast(e.message, "error");
+            if (res.ok) {
+                const data = await res.json();
+                showToast(`Importada: ${data.count} canciones`, "success");
+                loadPlaylists();
+                closeCreatePlaylistModal();
+                // Clear inputs
+                document.getElementById("new-playlist-name").value = "";
+                document.getElementById("new-playlist-url").value = "";
+                checkImportInput(); // Reset Button
+            } else {
+                const err = await res.json();
+                showToast("Error: " + (err.detail || "Fallo al importar"));
+            }
+        } catch (e) {
+            showToast("Error de conexión");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+
+    } else {
+        // Create Empty Mode
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, songs: [] })
+            });
+
+            if (res.ok) {
+                showToast("Playlist creada");
+                loadPlaylists();
+                closeCreatePlaylistModal();
+                document.getElementById("new-playlist-name").value = "";
+            } else {
+                showToast("Error creando playlist");
+            }
+        } catch (e) {
+            showToast("Error de conexión");
+        }
     }
 }
 

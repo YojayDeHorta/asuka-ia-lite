@@ -217,6 +217,41 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         logger.error(f"Radio API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+class PlaylistImport(BaseModel):
+    name: str
+    url: str
+
+@app.post("/api/playlists/import")
+async def import_playlist(data: PlaylistImport, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        if not data.url or not data.name:
+            raise HTTPException(status_code=400, detail="Missing name or url")
+
+        # Extract Songs
+        songs = await core.extract_playlist_info(data.url)
+        if not songs:
+             raise HTTPException(status_code=400, detail="No songs found in URL")
+
+        # Save to DB
+        json_data = json.dumps(songs)
+        success = database.save_playlist(user_id, data.name, json_data)
+        
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save failed")
+        
+        return {"status": "ok", "count": len(songs)}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Import Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/playlists")
 def save_playlist(playlist: PlaylistCreate, request: Request):
     import json

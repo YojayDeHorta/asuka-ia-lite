@@ -43,6 +43,42 @@ class MusicCore:
         search_opts['extract_flat'] = True # No descargar info detallada de video
         self.search_ytdl = yt_dlp.YoutubeDL(search_opts)
 
+    async def extract_playlist_info(self, url):
+        """
+        Extracts playlist videos efficiently using search_ytdl (flat extraction).
+        Returns a list of dicts: {'title': str, 'url': str (original_url), 'is_intro': False}
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            # extract_flat is already set in search_ytdl options
+            info = await loop.run_in_executor(None, lambda: self.search_ytdl.extract_info(url, download=False))
+            
+            if 'entries' not in info:
+                return []
+                
+            songs = []
+            for entry in info['entries']:
+                if not entry: continue
+                # In flat extraction, entry usually has 'title' and 'url' or 'id'
+                title = entry.get('title', 'Unknown Title')
+                # Construct URL if missing (usually needed for YouTube)
+                video_url = entry.get('url')
+                if not video_url:
+                    video_id = entry.get('id')
+                    if video_id:
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                
+                if video_url:
+                    songs.append({
+                        'title': title,
+                        'url': video_url,
+                        'is_intro': False
+                    })
+            return songs
+        except Exception as e:
+            logger.error(f"Error extracting playlist: {e}")
+            return []
+
     async def search(self, query, limit=None):
         """
         Busca canciones en YouTube o Spotify.
