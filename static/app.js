@@ -1686,25 +1686,25 @@ async function playPlaylistContext(name, startIndex) {
 }
 
 async function deleteSongFromPlaylist(playlistName, index) {
-    if (!confirm("¿Quitar esta canción de la lista?")) return;
+    showConfirm("¿Quitar esta canción de la lista?", async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/songs/${index}`, {
+                method: "DELETE"
+            });
 
-    try {
-        const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/songs/${index}`, {
-            method: "DELETE"
-        });
-
-        if (res.ok) {
-            showToast("Canción eliminada");
-            // Refresh view
-            viewPlaylist(playlistName);
-        } else {
-            const err = await res.json();
-            showToast("Error: " + (err.detail || "No se pudo eliminar"));
+            if (res.ok) {
+                showToast("Canción eliminada");
+                // Refresh view
+                viewPlaylist(playlistName);
+            } else {
+                const err = await res.json();
+                showToast("Error: " + (err.detail || "No se pudo eliminar"));
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión");
         }
-    } catch (e) {
-        console.error(e);
-        showToast("Error de conexión");
-    }
+    });
 }
 
 
@@ -1787,32 +1787,25 @@ function closeTrackOptionsDropdown() {
     document.removeEventListener("click", closeTrackOptionsDropdown);
 }
 
+
 async function removeFromHistory(id, title) {
-    // Optimistic UI or confirmation? User asked for "give click delete", maybe no confirm for single item?
-    // User said: "al darle borrar a 1 se borra la otra tambien" -> implies they just want simple deletion.
-    // Let's keep a quick confirm or just delete. A confirm is safer.
-    // "queria algo pequeño... modal no" implies speed.
-    // I'll keep confirm for now but make it standard.
-    // Actually, title is passed for confirmation text
-    // if(!confirm(`¿Borrar del historial?`)) return; 
+    showConfirm(`¿Borrar "${title}" del historial?`, async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/history`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            });
 
-    try {
-        const res = await authenticatedFetch(`${API_URL}/history`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id }) // Send ID
-        });
-
-        if (res.ok) {
-            showToast("Borrado");
-            loadHistory(); // Refresh
-        } else {
-            showToast("Error al borrar", "error");
+            if (res.ok) {
+                showToast("Borrado");
+                loadHistory();
+            } else {
+                showToast("Error al borrar", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión");
         }
-    } catch (e) {
-        console.error(e);
-        showToast("Error de conexión");
-    }
+    });
 }
-
-
