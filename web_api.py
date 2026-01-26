@@ -210,6 +210,21 @@ def check_favorite(q: str, request: Request):
     except Exception as e:
         return {"is_liked": False}
 
+@app.get("/api/stats")
+def get_stats(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+        
+        stats = database.get_user_stats(user_id)
+        if not stats:
+            return {"total": 0, "top_songs": []}
+        return stats
+    except Exception as e:
+        logger.error(f"Stats Error: {e}")
+        return {"total": 0, "top_songs": []}
+
 # --- AUTH SYSTEM ---
 import hashlib
 

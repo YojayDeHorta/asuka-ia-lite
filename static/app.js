@@ -201,6 +201,68 @@ async function loadHistory() {
     }
 }
 
+async function loadStats() {
+    const list = document.getElementById("stats-top-list");
+    list.innerHTML = '<div style="text-align:center; padding:20px;"><div class="spinner"></div></div>'; // Loading
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/stats`);
+        if (!res.ok) throw new Error("Stats fetch failed");
+
+        const data = await res.json();
+
+        // 1. Total Label
+        document.getElementById("stats-total").innerText = data.total;
+
+        // 2. Rank Logic
+        const ranks = [
+            { limit: 0, title: "Recién Llegado" },
+            { limit: 10, title: "🎵 Oyente Casual" },
+            { limit: 50, title: "🎧 Fanático" },
+            { limit: 100, title: "🔥 Melómano" },
+            { limit: 500, title: "🤖 Asuka-dependiente" }
+        ];
+        // Find highest matching rank
+        let currentRank = ranks[0].title;
+        for (let r of ranks) {
+            if (data.total >= r.limit) currentRank = r.title;
+        }
+        document.getElementById("stats-rank").innerText = currentRank;
+
+        // 3. Render Top Songs
+        list.innerHTML = "";
+
+        if (data.top_songs.length === 0) {
+            list.innerHTML = '<p style="text-align:center; opacity:0.5;">Aún no hay suficientes datos.</p>';
+            return;
+        }
+
+        data.top_songs.forEach((item, index) => {
+            // item is [title, count] list from python
+            const title = item[0];
+            const count = item[1];
+
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div style="width: 30px; text-align: center; color:var(--primary); font-weight:bold;">#${index + 1}</div>
+                <div class="track-info">
+                    <h4>${title}</h4>
+                    <p>${count} reproducciones</p>
+                </div>
+                <button class="track-action" onclick="playHistoryItem('${title.replace(/'/g, "\\'")}')">
+                   <i class="fa-solid fa-play"></i>
+                </button>
+            `;
+            list.appendChild(el);
+        });
+
+    } catch (e) {
+        console.error("Stats error", e);
+        list.innerHTML = '<p style="color:red">Error cargando estadísticas.</p>';
+    }
+}
+
 async function playHistoryItem(title) {
     const track = {
         title: title,
@@ -755,6 +817,47 @@ function switchLibraryTab(tab) {
         loadFavorites();
     }
 }
+
+function showSection(sectionId) {
+    // Hide all sections
+    document.getElementById("home-view").style.display = 'none';
+    document.getElementById("library-view").style.display = 'none';
+    document.getElementById("results-view").style.display = 'none';
+    document.getElementById("queue-view").style.display = 'none';
+    document.getElementById("stats-view").style.display = 'none';
+
+    // Deactivate all nav links
+    document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+
+    switch (sectionId) {
+        case 'home':
+            document.getElementById("home-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[0].classList.add('active');
+            break;
+        case 'search':
+            document.getElementById("results-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[1].classList.add('active');
+            document.getElementById("global-search").focus();
+            break;
+        case 'library':
+            document.getElementById("library-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[2].classList.add('active');
+            switchLibraryTab('history');
+            break;
+        case 'stats':
+            document.getElementById("stats-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[3].classList.add('active'); // Adjust index if needed
+            loadStats();
+            break;
+        case 'queue':
+            document.getElementById("queue-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[4].classList.add('active');
+            updateQueueUI();
+            break;
+    }
+}
+
+
 
 async function loadFavorites() {
     const container = document.getElementById("favorites-list");
