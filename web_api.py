@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import asyncio
 from utils.music_core import MusicCore
 from utils import database
+from utils import ai_core 
 from utils.logger import setup_logger
 import config
 
@@ -65,6 +66,54 @@ async def resolve_stream(q: str, request: Request):
         logger.error(f"Resolve error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+        return data
+    except Exception as e:
+        logger.error(f"Resolve error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Chat Persistence ---
+class ChatMessage(BaseModel):
+    message: str
+    history: list[dict] = [] # Legacy support, but we rely on DB now
+
+@app.post("/api/chat")
+async def chat_interaction(ctx: ChatMessage, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Save User Message
+        database.add_chat_message(user_id, "user", ctx.message)
+
+        # 2. Load History from DB (Context)
+        # We ignore ctx.history from frontend to ensure consistency
+        db_history = database.get_chat_history(user_id, limit=20) 
+        
+        # 3. Generate Response
+        response = await ai_core.generate_response(ctx.message, db_history) # ai_core expects history format?
+        
+        # 4. Save Bot Response
+        database.add_chat_message(user_id, "model", response)
+
+        return {"response": response}
+    except Exception as e:
+        logger.error(f"Chat Error: {e}")
+        return {"response": "Error cerebral... inténtalo de nuevo."}
+
+@app.get("/api/chat/history")
+def get_chat_history_endpoint(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # Get raw history
+        history = database.get_chat_history(user_id, limit=50)
+        return history
+    except Exception as e:
+        logger.error(f"Chat History Error: {e}")
+        return []
 
 # Playlist Endpoints (Reusing Database)
 @app.get("/api/playlists")

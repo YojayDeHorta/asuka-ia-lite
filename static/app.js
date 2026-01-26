@@ -1449,3 +1449,32 @@ function scrollToBottom() {
 document.getElementById("chat-input")?.addEventListener("keypress", (e) => {
     if (e.key === "Enter") sendChatMessage();
 });
+
+async function loadChatHistory() {
+    try {
+        const res = await authenticatedFetch(`${API_URL}/chat/history`);
+        if (!res.ok) return; // Silent fail
+
+        const history = await res.json();
+        if (history.length > 0) {
+            // Clear default welcome message
+            const container = document.getElementById("chat-messages");
+            container.innerHTML = "";
+
+            history.forEach(msg => {
+                // DB returns {role: '...', parts: [{text: '...'}]}
+                // We map 'model' -> 'bot', 'user' -> 'user'
+                const role = (msg.role === 'model') ? 'bot' : 'user';
+                const text = msg.parts[0].text;
+                addChatBubble(text, role);
+            });
+            scrollToBottom();
+        }
+    } catch (e) {
+        console.error("Failed to load chat history", e);
+    }
+}
+
+// Call on load
+loadChatHistory();
+

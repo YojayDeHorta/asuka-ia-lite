@@ -49,6 +49,10 @@ def ensure_db():
             c.execute('''CREATE TABLE IF NOT EXISTS users
                          (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
             
+            # Chat History
+            c.execute('''CREATE TABLE IF NOT EXISTS chat_history
+                         (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+            
             # Migration check
             try:
                 c.execute("ALTER TABLE music_history ADD COLUMN guild_id INTEGER DEFAULT 0")
@@ -238,3 +242,28 @@ def verify_user_login(username):
     except Exception as e:
         logger.error(f"Error checking user: {e}")
         return None
+
+# --- Chat History System ---
+def add_chat_message(user_id, role, content):
+    try:
+        with DBConnection() as c:
+            c.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, ?, ?)", (user_id, role, content))
+    except Exception as e:
+        logger.error(f"Error saving chat message: {e}")
+
+def get_chat_history(user_id, limit=50):
+    try:
+        with DBConnection() as c:
+            # Get latest N messages, then sort by timestamp ASC for context
+            c.execute("""
+                SELECT role, content FROM (
+                    SELECT role, content, timestamp FROM chat_history 
+                    WHERE user_id=? 
+                    ORDER BY timestamp DESC LIMIT ?
+                ) ORDER BY timestamp ASC
+            """, (user_id, limit))
+            rows = c.fetchall()
+            return [{"role": r[0], "parts": [{"text": r[1]}]} for r in rows]
+    except Exception as e:
+        logger.error(f"Error fetching chat history: {e}")
+        return []
