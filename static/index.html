@@ -50,7 +50,12 @@
                 <a href="#" onclick="showSection('queue')"><i class="fa-solid fa-list-ol"></i> Cola</a>
             </nav>
             <div class="playlists-section">
-                <h3>Mis Playlists</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0;">Mis Playlists</h3>
+                    <button onclick="openCreatePlaylistModal()"
+                        style="background:none; border:none; color:var(--text-sec); cursor:pointer;"><i
+                            class="fa-solid fa-plus"></i></button>
+                </div>
                 <ul id="playlist-list">
                     <!-- JS Injected -->
                 </ul>
@@ -191,6 +196,25 @@
                 <div id="queue-view" class="view" style="display: none;">
                     <h1>Cola de Reproducción</h1>
                     <div class="list-layout" id="queue-list"></div>
+                </div>
+
+                <div id="playlist-view" class="view" style="display: none;">
+                    <div class="playlist-header">
+                        <div class="playlist-info">
+                            <h2 id="playlist-title-header">Nombre Playlist</h2>
+                            <p id="playlist-meta-info" style="opacity:0.7; font-size:0.9rem;"><i
+                                    class="fa-solid fa-music"></i> &nbsp; Explorar Contenido</p>
+                        </div>
+                        <div class="playlist-actions">
+                            <button class="btn-primary" onclick="playCurrentPlaylistContext()">
+                                <i class="fa-solid fa-play"></i> Reproducir Todo
+                            </button>
+                            <button class="btn-danger" onclick="deleteCurrentPlaylist()" title="Eliminar Playlist">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="list-layout" id="playlist-songs-list"></div>
                 </div>
 
                 <div id="library-view" class="view" style="display: none;">
@@ -348,6 +372,9 @@
                 </div>
 
 
+
+
+
             </div>
 
             <div style="text-align:center; margin-top:30px;">
@@ -355,6 +382,33 @@
             </div>
         </div>
     </div>
+
+    <!-- Create Playlist Modal -->
+    <div id="create-playlist-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass">
+            <h2><i class="fa-solid fa-list-music"></i> Nueva Playlist</h2>
+            <p>Escribe un nombre para tu lista:</p>
+            <input type="text" id="new-playlist-name" class="modal-input" placeholder="Ej: Favoritos, Gym, Triste..."
+                autocomplete="off">
+            <div class="modal-buttons">
+                <button class="tab-btn" onclick="closeCreatePlaylistModal()">Cancelar</button>
+                <button class="tab-btn active" onclick="submitCreatePlaylist()">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add To Playlist Modal -->
+    <div id="add-to-playlist-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-height:400px; overflow-y:auto;">
+            <h2>Guardar en...</h2>
+            <div id="add-playlist-list" class="list-layout" style="margin-bottom:20px;">
+                <!-- JS Populated -->
+            </div>
+            <button class="tab-btn" onclick="closeAddToPlaylistModal()" style="width:100%;">Cancelar</button>
+        </div>
+    </div>
+
+
 
     <!-- Custom Radio Modal -->
     <div id="custom-radio-modal" class="modal-overlay" style="display: none;">

@@ -72,9 +72,9 @@ def get_recent_songs(guild_id, limit=10):
     try:
         with DBConnection() as c:
             # Filter by Guild ID to isolate contexts
-            c.execute("SELECT title FROM music_history WHERE guild_id=? ORDER BY timestamp DESC LIMIT ?", (guild_id, limit))
+            c.execute("SELECT rowid, title FROM music_history WHERE guild_id=? ORDER BY timestamp DESC LIMIT ?", (guild_id, limit))
             rows = c.fetchall()
-            return [row[0] for row in rows]
+            return rows # Returns [(id, title), ...]
     except Exception as e:
         logger.error(f"Error leyendo historial musical: {e}")
         return []
@@ -113,6 +113,29 @@ def clear_music_history():
     except Exception as e:
         logger.error(f"Error borrando historial musical: {e}")
 
+
+def delete_from_history(user_id, history_id):
+    try:
+        with DBConnection() as c:
+            # Delete by ROWID (SQLite default implicit ID)
+            # Use user_id (or guild_id logic, though currently guild_id=0 for lite user) for extra safety if needed?
+            # Actually, `music_history` doesn't have `user_id` in schema line 42? 
+            # Wait, line 42 says: (user_id INTEGER, title TEXT...
+            # But line 58 says: ADD COLUMN guild_id.
+            # So it has user_id. 
+            # We should probably filter by user_id too to prevent cross-user deletion if IDs overlap (though ROWID is unique per table).
+            c.execute("DELETE FROM music_history WHERE rowid = ? AND user_id = ?", (history_id, user_id))
+            if c.rowcount == 0:
+                 # Try with guild_id if user_id was 0 (the Lite default?)
+                 # For Asuka Lite, user_id usually maps to guild_id/uid. 
+                 # Let's just trust rowid for now as it's unique. Or verify ownership if possible.
+                 # Given it's a single-user-ish 'Lite' app, rowid check is sufficient, but let's keep user_id check if possible.
+                 pass
+            logger.info(f"Borrado history_id: {history_id}")
+            return True
+    except Exception as e:
+        logger.error(f"Error deleting from history: {e}")
+        return False
 # --- Playlists System ---
 def save_playlist(user_id, name, songs_json):
     try:

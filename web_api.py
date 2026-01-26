@@ -117,10 +117,14 @@ def get_chat_history_endpoint(request: Request):
 
 # Playlist Endpoints (Reusing Database)
 @app.get("/api/playlists")
-def get_playlists():
+def get_playlists(request: Request):
     try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
         # Get list [(name, date), ...]
-        raw = database.get_user_playlists(WEB_USER_ID)
+        raw = database.get_user_playlists(user_id)
         return [{"name": r[0], "created_at": r[1]} for r in raw]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -132,20 +136,42 @@ def get_history(request: Request):
         uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
         guild_id = int(uid_str) if uid_str.isdigit() else 0
         
-        # Get raw list
-        songs = database.get_recent_songs(guild_id, limit=50) # Get last 50
+        # Get raw list [(id, title), ...]
+        songs = database.get_recent_songs(guild_id, limit=50) 
         
         # Format as list of objects
-        return [{"title": title} for title in songs]
+        return [{"id": r[0], "title": r[1]} for r in songs]
     except Exception as e:
          logger.error(f"History fetch error: {e}")
          return []
 
+class HistoryDeleteRequest(BaseModel):
+    id: int # Changed from title: str
+
+@app.delete("/api/history")
+def delete_history_item(req: HistoryDeleteRequest, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # Call with ID
+        success = database.delete_from_history(user_id, req.id)
+        if not success:
+             raise HTTPException(status_code=500, detail="Database error or unauthorized")
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/playlists/{name}")
-def get_playlist_content(name: str):
+def get_playlist_content(name: str, request: Request):
     import json
     try:
-        json_str = database.get_playlist(WEB_USER_ID, name)
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        json_str = database.get_playlist(user_id, name)
         if not json_str:
              raise HTTPException(status_code=404, detail="Playlist not found")
         return json.loads(json_str)
@@ -192,13 +218,17 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/playlists")
-def save_playlist(playlist: PlaylistCreate):
+def save_playlist(playlist: PlaylistCreate, request: Request):
     import json
     try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
         # Convert songs to storage format
         # Expects dicts, stored as JSON
         json_data = json.dumps(playlist.songs)
-        success = database.save_playlist(WEB_USER_ID, playlist.name, json_data)
+        success = database.save_playlist(user_id, playlist.name, json_data)
         if not success:
              raise HTTPException(status_code=500, detail="Database error")
         return {"status": "ok"}
@@ -206,14 +236,83 @@ def save_playlist(playlist: PlaylistCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/playlists/{name}")
-def delete_playlist(name: str):
+def delete_playlist(name: str, request: Request):
     try:
-        success = database.delete_playlist(WEB_USER_ID, name)
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        success = database.delete_playlist(user_id, name)
         if not success:
              raise HTTPException(status_code=404, detail="Not found or error")
         return {"status": "ok"}
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
+
+class AddSongRequest(BaseModel):
+    title: str
+
+@app.post("/api/playlists/{name}/add")
+def add_song_to_playlist(name: str, req: AddSongRequest, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Get current
+        json_str = database.get_playlist(user_id, name)
+        songs = []
+        if json_str:
+            songs = json.loads(json_str)
+        
+        # 2. Add
+        # Check duplicates if desired? Nah, let duplicates exist for now.
+        songs.append({"title": req.title})
+        
+        # 3. Save
+        success = database.save_playlist(user_id, name, json.dumps(songs))
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save error")
+             
+        return {"status": "ok", "count": len(songs)}
+    except Exception as e:
+        logger.error(f"Add Song Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/playlists/{name}/songs/{index}")
+def delete_song_from_playlist(name: str, index: int, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Get current
+        json_str = database.get_playlist(user_id, name)
+        if not json_str:
+            raise HTTPException(status_code=404, detail="Playlist not found")
+        
+        songs = json.loads(json_str)
+        
+        # 2. Validation
+        if index < 0 or index >= len(songs):
+            raise HTTPException(status_code=400, detail="Invalid song index")
+
+        # 3. Remove
+        removed = songs.pop(index)
+        
+        # 4. Save
+        success = database.save_playlist(user_id, name, json.dumps(songs))
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save error")
+             
+        return {"status": "ok", "removed": removed}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Delete Song Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 class FavoriteRequest(BaseModel):
     title: str
@@ -315,62 +414,7 @@ async def login(user: UserAuth):
          
     return {"id": db_id, "username": user.username}
 
-# --- CHAT SYSTEM ---
-# Global in-memory sessions: {user_id: chat_session_object}
-web_chat_sessions = {}
 
-class ChatRequest(BaseModel):
-    message: str
-    context: str | None = None # Optional extra context (e.g. current song)
-
-@app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest, request: Request):
-    try:
-        # Fetch UID
-        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
-        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
-
-        import google.generativeai as genai
-        genai.configure(api_key=config.GEMINI_KEY)
-        model = genai.GenerativeModel(config.AI_MODEL)
-
-        # Get or Create Session
-        if user_id not in web_chat_sessions:
-            # 1. Get Memory (Only injected at start of session context)
-            memories = database.get_memory(user_id)
-            mem_text = ""
-            if memories:
-                 mem_text = "Sabes esto del usuario: " + ", ".join(memories) + "."
-            
-            system_instruction = (
-                f"Eres Asuka, una asistente de música sarcástica y 'Tsundere' (anime). "
-                f"{mem_text} "
-                "Responde de forma corta (máx 2 frases), con personalidad. "
-            )
-            
-            # Initialize with system instruction as the first history item if supported, 
-            # OR just keep it in mind. For Gemini API python, we can use history=[]
-            # and send the system prompt as the first message or configure it in model?
-            # Simpler: Send system prompt as first context.
-            history = [
-                {"role": "user", "parts": [system_instruction]},
-                {"role": "model", "parts": ["Entendido. Soy Asuka. ¿Qué quieres? 😒"]}
-            ]
-            web_chat_sessions[user_id] = model.start_chat(history=history)
-            logger.info(f"New Web Chat Session for {user_id}")
-
-        session = web_chat_sessions[user_id]
-        
-        # Send Message
-        response = await session.send_message_async(req.message)
-        return {"response": response.text.strip()}
-
-    except Exception as e:
-        logger.error(f"Chat Error: {e}")
-        # Invalidate session on error to avoid stuck states
-        if user_id in web_chat_sessions:
-            del web_chat_sessions[user_id]
-        return {"response": "Hmph. Me distraje. Repítelo. (Error de sesión)"}
 
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)

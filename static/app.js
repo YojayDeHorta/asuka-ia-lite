@@ -28,45 +28,6 @@ async function authenticatedFetch(url, options = {}) {
 }
 
 // --- Navigation ---
-// --- Navigation ---
-function showSection(id) {
-    // 1. Hide all views
-    document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
-
-    // 2. Manage Active Link
-    // Remove active from any currently active link
-    const currentActive = document.querySelector('.nav-links .active');
-    if (currentActive) {
-        currentActive.classList.remove('active');
-    }
-
-    // Add active to new link (find by onclick content roughly or ID)
-    // Simpler: Search for link containing the function call
-    const links = document.querySelectorAll('.nav-links a');
-    links.forEach(link => {
-        if (link.getAttribute("onclick") && link.getAttribute("onclick").includes(`'${id}'`)) {
-            link.classList.add('active');
-        }
-    });
-
-    // 3. Show Target View
-    if (id === 'search' || id === 'home' || id === 'library' || id === 'queue') {
-        // Mapping: home->home-view, search->results-view, library->library-view
-        let targetId = 'home-view';
-        if (id === 'search') targetId = 'results-view';
-        if (id === 'queue') {
-            targetId = 'queue-view';
-            updateQueueUI();
-        }
-        if (id === 'library') {
-            targetId = 'library-view';
-            loadHistory();
-        }
-
-        const view = document.getElementById(targetId);
-        if (view) view.style.display = 'block';
-    }
-}
 
 
 function updateQueueUI() {
@@ -96,8 +57,15 @@ searchInput.addEventListener("keypress", async (e) => {
         container.innerHTML = '<div style="text-align:center; padding:20px;">Buscan2... 🕵️‍♀️</div>';
 
         try {
-            const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(query)}`);
-            const data = await res.json();
+            // Fetch Search AND Favorites in parallel to check like status
+            const [searchRes, favRes] = await Promise.all([
+                fetch(`${API_URL}/search?q=${encodeURIComponent(query)}`),
+                authenticatedFetch(`${API_URL}/favorites`)
+            ]);
+
+            const data = await searchRes.json();
+            const favorites = favRes.ok ? await favRes.json() : [];
+            const favSet = new Set(favorites.map(f => f.title));
 
             container.innerHTML = "";
             if (data.length === 0) {
@@ -119,15 +87,32 @@ searchInput.addEventListener("keypress", async (e) => {
                     thumbContent = '<i class="fa-solid fa-music"></i>';
                 }
 
+                // Check Love Status
+                const isLiked = favSet.has(track.title);
+                const heartClass = isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart";
+                const heartColor = isLiked ? "#ff4757" : "#b3b3b3";
+                const safeTitle = track.title.replace(/'/g, "\\'");
+
                 el.innerHTML = `
                     <div class="track-img" style="${thumbStyle}">${thumbContent}</div>
                     <div class="track-info">
                         <h4>${track.title}</h4>
                         <p>${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}</p>
                     </div>
-                    <button class="track-action"><i class="fa-solid fa-play"></i></button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="track-action" title="Me gusta" style="color: ${heartColor};" onclick="toggleHistoryLike(this, '${safeTitle}')">
+                            <i class="${heartClass}"></i>
+                        </button>
+                        <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${safeTitle}', null, 'search')">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </button>
+                    </div>
                 `;
-                el.onclick = () => playTrack(track);
+                el.onclick = (e) => {
+                    // Prevent click if clicking options
+                    if (e.target.closest('.track-action')) return;
+                    playTrack(track);
+                };
                 container.appendChild(el);
             });
 
@@ -187,8 +172,8 @@ async function loadHistory() {
                     <button class="track-action" title="Me gusta" style="color: ${heartColor};" onclick="toggleHistoryLike(this, '${safeTitle}')">
                         <i class="${heartClass}"></i>
                     </button>
-                    <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${safeTitle}')">
-                        <i class="fa-solid fa-plus"></i>
+                    <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${safeTitle}', ${item.id}, 'history')">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
                     </button>
                 </div>
             `;
@@ -820,11 +805,7 @@ function switchLibraryTab(tab) {
 
 function showSection(sectionId) {
     // Hide all sections
-    document.getElementById("home-view").style.display = 'none';
-    document.getElementById("library-view").style.display = 'none';
-    document.getElementById("results-view").style.display = 'none';
-    document.getElementById("queue-view").style.display = 'none';
-    document.getElementById("stats-view").style.display = 'none';
+    document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
 
     // Deactivate all nav links
     document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
@@ -853,6 +834,10 @@ function showSection(sectionId) {
             document.getElementById("queue-view").style.display = 'block';
             document.querySelectorAll('.nav-links a')[4].classList.add('active');
             updateQueueUI();
+            break;
+        case 'playlist':
+            document.getElementById("playlist-view").style.display = 'block';
+            // No nav link active
             break;
     }
 }
@@ -883,7 +868,7 @@ async function loadFavorites() {
                     <h4>${item.title}</h4>
                     <p>Me Gusta</p>
                 </div>
-                <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i></button>
+                <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${item.title.replace(/'/g, "\\'")}', null, 'favorites')"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             `;
             container.appendChild(el);
         });
@@ -1078,6 +1063,7 @@ function loginUser(userData) {
     ASUKA_UID = userData.id;
     // UI Update
     updateAuthUI(userData);
+    loadPlaylists(); // Load playlists on login
 }
 
 function logout() {
@@ -1094,6 +1080,7 @@ function checkAuthStatus() {
             const user = JSON.parse(saved);
             ASUKA_UID = user.id;
             updateAuthUI(user);
+            loadPlaylists(); // Load playlists on startup checks
         } catch (e) {
             console.error("Auth Error", e);
         }
@@ -1170,6 +1157,7 @@ function renderQueue(containerId = "queue-panel-list") {
             </div>
             <div class="queue-item-actions">
                 ${index !== currentIndex ? `<button class="queue-item-btn" onclick="playQueueItem(${index})" title="Reproducir"><i class="fa-solid fa-play"></i></button>` : ''}
+                <button class="queue-item-btn" onclick="openAddToPlaylistModal('${trackTitle.replace(/'/g, "\\'")}')" title="Añadir a Playlist"><i class="fa-solid fa-plus"></i></button>
                 <button class="queue-item-btn" onclick="removeQueueItem(${index})" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
             </div>
         `;
@@ -1477,4 +1465,354 @@ async function loadChatHistory() {
 
 // Call on load
 loadChatHistory();
+loadPlaylists();
+
+
+// --- PLAYLIST MANAGEMENT ---
+let currentPlaylistView = null; // Name of playlist currently viewing
+let songToAddTitle = null; // Temp storage for "Add to Playlist" modal
+
+async function loadPlaylists() {
+    const list = document.getElementById("playlist-list");
+    const addList = document.getElementById("add-playlist-list");
+
+    if (!list) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists`);
+        if (!res.ok) return; // Silent fail if not auth
+
+        const playlists = await res.json();
+
+        // Render Sidebar
+        list.innerHTML = "";
+        addList.innerHTML = "";
+
+        if (playlists.length === 0) {
+            list.innerHTML = '<li style="color:#666; font-size:0.8rem; padding:10px;">Sin playlists</li>';
+            addList.innerHTML = '<p style="text-align:center; color:#666;">No tienes playlists</p>';
+        }
+
+        playlists.forEach(p => {
+            // Sidebar Item
+            const li = document.createElement("li");
+            li.style.listStyle = "none";
+            li.innerHTML = `<a href="#" onclick="viewPlaylist('${p.name}')"><i class="fa-solid fa-list"></i> ${p.name}</a>`;
+            list.appendChild(li);
+
+            // Add Modal Item
+            const addItem = document.createElement("div");
+            addItem.className = "modal-list-item";
+            addItem.innerHTML = `
+                <div class="track-info"><h4>${p.name}</h4></div>
+                <button class="track-action" onclick="submitAddToPlaylist('${p.name}')"><i class="fa-solid fa-plus"></i></button>
+            `;
+            addList.appendChild(addItem);
+        });
+
+    } catch (e) {
+        console.error("Playlist load error", e);
+    }
+}
+
+// Create
+function openCreatePlaylistModal() {
+    document.getElementById("create-playlist-modal").style.display = "flex";
+    document.getElementById("new-playlist-name").focus();
+}
+
+function closeCreatePlaylistModal() {
+    document.getElementById("create-playlist-modal").style.display = "none";
+    document.getElementById("new-playlist-name").value = "";
+}
+
+async function submitCreatePlaylist() {
+    const name = document.getElementById("new-playlist-name").value.trim();
+    if (!name) return;
+
+    try {
+        // Create empty playlist
+        const res = await authenticatedFetch(`${API_URL}/playlists`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, songs: [] })
+        });
+
+        if (!res.ok) throw new Error("Error creando playlist");
+
+        showToast(`Playlist "${name}" creada`, "success");
+        closeCreatePlaylistModal();
+        loadPlaylists();
+
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+// Add To
+function openAddToPlaylistModal(title) {
+    if (!ASUKA_UID) {
+        showToast("Inicia sesión primero", "error");
+        return;
+    }
+    songToAddTitle = title;
+    document.getElementById("add-to-playlist-modal").style.display = "flex";
+    // Reload to ensure fresh list
+    loadPlaylists();
+}
+
+function closeAddToPlaylistModal() {
+    document.getElementById("add-to-playlist-modal").style.display = "none";
+    songToAddTitle = null;
+}
+
+async function submitAddToPlaylist(playlistName) {
+    if (!songToAddTitle) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: songToAddTitle })
+        });
+
+        if (!res.ok) throw new Error("Error guardando canción");
+
+        showToast(`Añadida a "${playlistName}"`, "success");
+        closeAddToPlaylistModal();
+
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+// View
+async function viewPlaylist(name) {
+    currentPlaylistView = name;
+    showSection('playlist'); // Need to handle this case
+
+    document.getElementById("playlist-title-header").innerText = name;
+    const container = document.getElementById("playlist-songs-list");
+    container.innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${name}`);
+        if (!res.ok) throw new Error("No se pudo cargar");
+
+        const songs = await res.json();
+
+        // Update Meta Info
+        const meta = document.getElementById("playlist-meta-info");
+        if (meta) meta.innerHTML = `<i class="fa-solid fa-music"></i> &nbsp; ${songs.length} canciones`;
+
+        container.innerHTML = "";
+
+        if (songs.length === 0) {
+            container.innerHTML = '<div class="queue-empty"><p>Playlist vacía</p></div>';
+            return;
+        }
+
+        songs.forEach((s, i) => {
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div style="width:30px; text-align:center; color:#666;">${i + 1}</div>
+                <div class="track-info"><h4>${s.title}</h4></div>
+                <div style="display:flex; gap:10px;">
+                    <button class="track-action" onclick="playPlaylistContext('${name}', ${i})"><i class="fa-solid fa-play"></i></button>
+                    <button class="track-action" style="border-color:rgba(255, 71, 87, 0.3); color:#ff4757;" onclick="deleteSongFromPlaylist('${name}', ${i})" title="Quitar de la lista">
+                        <i class="fa-solid fa-trash" style="font-size:0.8rem;"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(el);
+        });
+
+    } catch (e) {
+        container.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+    }
+}
+
+async function deleteCurrentPlaylist() {
+    if (!currentPlaylistView) return;
+
+    showConfirm(`¿Borrar playlist "${currentPlaylistView}"?`, async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/${currentPlaylistView}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                showToast("Playlist eliminada", "info");
+                loadPlaylists();
+                showSection('home');
+            }
+        } catch (e) {
+            showToast("Error eliminando", "error");
+        }
+    });
+}
+
+async function playCurrentPlaylistContext() {
+    // Play full playlist starting from 0
+    playPlaylistContext(currentPlaylistView, 0);
+}
+
+async function playPlaylistContext(name, startIndex) {
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${name}`);
+        const songs = await res.json();
+
+        if (songs.length === 0) return;
+
+        // Convert to track structure
+        const tracks = songs.map(s => ({
+            title: s.title,
+            url: null,
+            is_intro: false
+        }));
+
+        // Replace Queue
+        currentQueue = tracks;
+        currentIndex = startIndex;
+
+        loadAndPlay(currentQueue[currentIndex]);
+        renderQueue();
+        showToast(`Reproduciendo "${name}"`, "success");
+
+    } catch (e) {
+        console.error(e);
+        showToast("Error reproduciendo playlist");
+    }
+}
+
+async function deleteSongFromPlaylist(playlistName, index) {
+    if (!confirm("¿Quitar esta canción de la lista?")) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/songs/${index}`, {
+            method: "DELETE"
+        });
+
+        if (res.ok) {
+            showToast("Canción eliminada");
+            // Refresh view
+            viewPlaylist(playlistName);
+        } else {
+            const err = await res.json();
+            showToast("Error: " + (err.detail || "No se pudo eliminar"));
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error de conexión");
+    }
+}
+
+
+
+// --- Track Options Popover Logic ---
+function toggleTrackOptions(event, title, historyId, mode) {
+    event.stopPropagation(); // Prevent closing immediately
+
+    // Close any existing dropdowns
+    closeTrackOptionsDropdown();
+
+    // Create dropdown
+    const dropdown = document.createElement("div");
+    dropdown.className = "track-options-dropdown";
+    dropdown.id = "track-options-dropdown";
+
+    // 1. Add to Queue
+    const btnQueue = document.createElement("div");
+    btnQueue.className = "track-options-item";
+    btnQueue.innerHTML = `<i class="fa-solid fa-list"></i> Añadir a la Cola`;
+    btnQueue.onclick = () => {
+        playHistoryItem(title);
+        closeTrackOptionsDropdown();
+    };
+    dropdown.appendChild(btnQueue);
+
+    // 2. Add to Playlist
+    const btnPlaylist = document.createElement("div");
+    btnPlaylist.className = "track-options-item";
+    btnPlaylist.innerHTML = `<i class="fa-solid fa-plus"></i> Playlist...`;
+    btnPlaylist.onclick = () => {
+        openAddToPlaylistModal(title);
+        closeTrackOptionsDropdown();
+    };
+    dropdown.appendChild(btnPlaylist);
+
+    // 3. Remove from History (Only if mode == history)
+    if (mode === 'history') {
+        const btnRemove = document.createElement("div");
+        btnRemove.className = "track-options-item";
+        btnRemove.style.color = "#ff4757";
+        btnRemove.innerHTML = `<i class="fa-solid fa-trash"></i> Eliminar`;
+        btnRemove.onclick = () => {
+            removeFromHistory(historyId, title); // Pass ID
+            closeTrackOptionsDropdown();
+        };
+        dropdown.appendChild(btnRemove);
+    }
+
+    document.body.appendChild(dropdown);
+
+    // Positioning
+    const rect = event.currentTarget.getBoundingClientRect();
+    const dropHeight = mode === 'history' ? 120 : 80; // approx height
+
+    // Default open right-bottom
+    let top = rect.bottom + 5;
+    let left = rect.left - 100; // Shift left a bit
+
+    // Access window dimensions
+    if (top + dropHeight > window.innerHeight) {
+        top = rect.top - dropHeight - 5; // Flip up
+    }
+    if (left + 180 > window.innerWidth) {
+        left = window.innerWidth - 190;
+    }
+
+    dropdown.style.top = `${top + window.scrollY}px`;
+    dropdown.style.left = `${left + window.scrollX}px`;
+
+    // Click outside listener
+    setTimeout(() => {
+        document.addEventListener("click", closeTrackOptionsDropdown);
+    }, 0);
+}
+
+function closeTrackOptionsDropdown() {
+    const el = document.getElementById("track-options-dropdown");
+    if (el) el.remove();
+    document.removeEventListener("click", closeTrackOptionsDropdown);
+}
+
+async function removeFromHistory(id, title) {
+    // Optimistic UI or confirmation? User asked for "give click delete", maybe no confirm for single item?
+    // User said: "al darle borrar a 1 se borra la otra tambien" -> implies they just want simple deletion.
+    // Let's keep a quick confirm or just delete. A confirm is safer.
+    // "queria algo pequeño... modal no" implies speed.
+    // I'll keep confirm for now but make it standard.
+    // Actually, title is passed for confirmation text
+    // if(!confirm(`¿Borrar del historial?`)) return; 
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/history`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id }) // Send ID
+        });
+
+        if (res.ok) {
+            showToast("Borrado");
+            loadHistory(); // Refresh
+        } else {
+            showToast("Error al borrar", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error de conexión");
+    }
+}
+
 
