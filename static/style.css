@@ -1369,7 +1369,8 @@ input:checked+.slider:before {
     align-items: center;
     justify-content: space-between;
     padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.05); /* Subtle glass */
+    background: rgba(255, 255, 255, 0.05);
+    /* Subtle glass */
     border-radius: 8px;
     transition: all 0.2s ease;
     cursor: pointer;
@@ -1379,7 +1380,8 @@ input:checked+.slider:before {
 
 .recent-item:hover {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateX(5px); /* Slide effect */
+    transform: translateX(5px);
+    /* Slide effect */
     border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -1398,7 +1400,7 @@ input:checked+.slider:before {
 }
 
 .trending-card {
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
     padding: 15px;
     border-radius: 12px;
     text-align: center;
@@ -1409,7 +1411,7 @@ input:checked+.slider:before {
 
 .trending-card:hover {
     transform: translateY(-5px);
-    background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(0,0,0,0) 100%);
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
     border-color: rgba(255, 71, 87, 0.3);
 }
 
