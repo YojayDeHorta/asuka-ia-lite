@@ -28,45 +28,6 @@ async function authenticatedFetch(url, options = {}) {
 }
 
 // --- Navigation ---
-// --- Navigation ---
-function showSection(id) {
-    // 1. Hide all views
-    document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
-
-    // 2. Manage Active Link
-    // Remove active from any currently active link
-    const currentActive = document.querySelector('.nav-links .active');
-    if (currentActive) {
-        currentActive.classList.remove('active');
-    }
-
-    // Add active to new link (find by onclick content roughly or ID)
-    // Simpler: Search for link containing the function call
-    const links = document.querySelectorAll('.nav-links a');
-    links.forEach(link => {
-        if (link.getAttribute("onclick") && link.getAttribute("onclick").includes(`'${id}'`)) {
-            link.classList.add('active');
-        }
-    });
-
-    // 3. Show Target View
-    if (id === 'search' || id === 'home' || id === 'library' || id === 'queue') {
-        // Mapping: home->home-view, search->results-view, library->library-view
-        let targetId = 'home-view';
-        if (id === 'search') targetId = 'results-view';
-        if (id === 'queue') {
-            targetId = 'queue-view';
-            updateQueueUI();
-        }
-        if (id === 'library') {
-            targetId = 'library-view';
-            loadHistory();
-        }
-
-        const view = document.getElementById(targetId);
-        if (view) view.style.display = 'block';
-    }
-}
 
 
 function updateQueueUI() {
@@ -90,51 +51,7 @@ searchInput.addEventListener("keypress", async (e) => {
     if (e.key === "Enter") {
         const query = searchInput.value;
         if (!query) return;
-
-        showSection('search');
-        const container = document.getElementById("search-results");
-        container.innerHTML = '<div style="text-align:center; padding:20px;">Buscan2... 🕵️‍♀️</div>';
-
-        try {
-            const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(query)}`);
-            const data = await res.json();
-
-            container.innerHTML = "";
-            if (data.length === 0) {
-                container.innerHTML = "No encontré nada :(";
-                return;
-            }
-
-            data.forEach(track => {
-                const el = document.createElement("div");
-                el.className = "track-item";
-
-                let thumbContent = '';
-                let thumbStyle = '';
-
-                if (track.thumbnail) {
-                    thumbStyle = `background-image: url('${track.thumbnail}'); background-size: cover;`;
-                } else {
-                    thumbStyle = `background:#333; display:flex; align-items:center; justify-content:center;`;
-                    thumbContent = '<i class="fa-solid fa-music"></i>';
-                }
-
-                el.innerHTML = `
-                    <div class="track-img" style="${thumbStyle}">${thumbContent}</div>
-                    <div class="track-info">
-                        <h4>${track.title}</h4>
-                        <p>${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}</p>
-                    </div>
-                    <button class="track-action"><i class="fa-solid fa-play"></i></button>
-                `;
-                el.onclick = () => playTrack(track);
-                container.appendChild(el);
-            });
-
-        } catch (err) {
-            console.error(err);
-            container.innerHTML = "Error buscando :(";
-        }
+        doSearch(query);
     }
 });
 
@@ -187,8 +104,8 @@ async function loadHistory() {
                     <button class="track-action" title="Me gusta" style="color: ${heartColor};" onclick="toggleHistoryLike(this, '${safeTitle}')">
                         <i class="${heartClass}"></i>
                     </button>
-                    <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${safeTitle}')">
-                        <i class="fa-solid fa-plus"></i>
+                    <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${safeTitle}', ${item.id}, 'history')">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
                     </button>
                 </div>
             `;
@@ -198,6 +115,68 @@ async function loadHistory() {
     } catch (e) {
         console.error(e);
         container.innerHTML = '<p style="color:red">Error cargando historial.</p>';
+    }
+}
+
+async function loadStats() {
+    const list = document.getElementById("stats-top-list");
+    list.innerHTML = '<div style="text-align:center; padding:20px;"><div class="spinner"></div></div>'; // Loading
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/stats`);
+        if (!res.ok) throw new Error("Stats fetch failed");
+
+        const data = await res.json();
+
+        // 1. Total Label
+        document.getElementById("stats-total").innerText = data.total;
+
+        // 2. Rank Logic
+        const ranks = [
+            { limit: 0, title: "Recién Llegado" },
+            { limit: 10, title: "🎵 Oyente Casual" },
+            { limit: 50, title: "🎧 Fanático" },
+            { limit: 100, title: "🔥 Melómano" },
+            { limit: 500, title: "🤖 Asuka-dependiente" }
+        ];
+        // Find highest matching rank
+        let currentRank = ranks[0].title;
+        for (let r of ranks) {
+            if (data.total >= r.limit) currentRank = r.title;
+        }
+        document.getElementById("stats-rank").innerText = currentRank;
+
+        // 3. Render Top Songs
+        list.innerHTML = "";
+
+        if (data.top_songs.length === 0) {
+            list.innerHTML = '<p style="text-align:center; opacity:0.5;">Aún no hay suficientes datos.</p>';
+            return;
+        }
+
+        data.top_songs.forEach((item, index) => {
+            // item is [title, count] list from python
+            const title = item[0];
+            const count = item[1];
+
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div style="width: 30px; text-align: center; color:var(--primary); font-weight:bold;">#${index + 1}</div>
+                <div class="track-info">
+                    <h4>${title}</h4>
+                    <p>${count} reproducciones</p>
+                </div>
+                <button class="track-action" onclick="playHistoryItem('${title.replace(/'/g, "\\'")}')">
+                   <i class="fa-solid fa-play"></i>
+                </button>
+            `;
+            list.appendChild(el);
+        });
+
+    } catch (e) {
+        console.error("Stats error", e);
+        list.innerHTML = '<p style="color:red">Error cargando estadísticas.</p>';
     }
 }
 
@@ -447,8 +426,12 @@ function startRadio(mood) {
 // Global Radio Mood
 let currentRadioMood = null;
 
+// Global Counter for Frequency
+let songsSinceLastIntro = 999; // Init high to ensure first song gets intro if enabled
+
 async function fetchNextRadioSong(isStart = false) {
     try {
+        if (isStart) songsSinceLastIntro = 999; // Force intro on start
         // Collect history for context (Filter out intros)
         const history = currentQueue
             .filter(t => !t.is_intro && t.title !== "🎙️ Asuka")
@@ -456,7 +439,20 @@ async function fetchNextRadioSong(isStart = false) {
             .map(t => t.title);
 
         const savedIntros = localStorage.getItem("asuka_enable_intros");
-        const enableIntros = (savedIntros === null || savedIntros === "true");
+        let enableIntrosGlobal = (savedIntros === null || savedIntros === "true");
+
+        // Frequency Logic
+        const savedFreq = parseInt(localStorage.getItem("asuka_intro_freq") || "3");
+        let enableIntros = enableIntrosGlobal;
+
+        if (enableIntrosGlobal) {
+            if (songsSinceLastIntro >= savedFreq) {
+                enableIntros = true;
+                // We reset specific counter LATER if intro actually plays
+            } else {
+                enableIntros = false;
+            }
+        }
 
         const res = await authenticatedFetch(`${API_URL}/radio/next`, {
             method: 'POST',
@@ -483,8 +479,11 @@ async function fetchNextRadioSong(isStart = false) {
                 duration: 5, // Estimate
                 is_intro: true
             });
+            songsSinceLastIntro = 1; // Reset to 1 (this song counts as the first of the new block)
+        } else {
+            // Intro WAS requested but not returned (or not requested)
+            songsSinceLastIntro++;
         }
-
         // 2. Song
         if (data.song_data) {
             itemsToAdd.push({
@@ -736,6 +735,51 @@ function switchLibraryTab(tab) {
     }
 }
 
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+
+    // Deactivate all nav links
+    document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+
+    switch (sectionId) {
+        case 'home':
+            document.getElementById("home-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[0].classList.add('active');
+            break;
+        case 'search':
+            document.getElementById("results-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[1].classList.add('active');
+            document.getElementById("global-search").focus();
+            // Show empty state if no search results present or input empty
+            if (document.getElementById("search-results").innerHTML === "" || document.getElementById("search-results").innerHTML.includes("Buscan2")) {
+                renderSearchEmptyState();
+            }
+            break;
+        case 'library':
+            document.getElementById("library-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[2].classList.add('active');
+            switchLibraryTab('history');
+            break;
+        case 'stats':
+            document.getElementById("stats-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[3].classList.add('active'); // Adjust index if needed
+            loadStats();
+            break;
+        case 'queue':
+            document.getElementById("queue-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[4].classList.add('active');
+            updateQueueUI();
+            break;
+        case 'playlist':
+            document.getElementById("playlist-view").style.display = 'block';
+            // No nav link active
+            break;
+    }
+}
+
+
+
 async function loadFavorites() {
     const container = document.getElementById("favorites-list");
     container.innerHTML = '<p style="text-align:center; color:#888;">Cargando favoritos...</p>';
@@ -760,7 +804,7 @@ async function loadFavorites() {
                     <h4>${item.title}</h4>
                     <p>Me Gusta</p>
                 </div>
-                <button class="track-action" title="Añadir a la cola" onclick="playHistoryItem('${item.title.replace(/'/g, "\\'")}')"><i class="fa-solid fa-plus"></i></button>
+                <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${item.title.replace(/'/g, "\\'")}', null, 'favorites')"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             `;
             container.appendChild(el);
         });
@@ -809,6 +853,10 @@ function openSettingsModal() {
         document.getElementById("settings-uid").value = ASUKA_UID;
         const savedIntros = localStorage.getItem("asuka_enable_intros");
         document.getElementById("setting-intros").checked = (savedIntros === null || savedIntros === "true");
+
+        const savedFreq = localStorage.getItem("asuka_intro_freq") || "3";
+        document.getElementById("setting-intro-freq").value = savedFreq;
+        document.getElementById("freq-display").innerText = savedFreq;
         // Refresh Theme UI
         initTheme();
     }
@@ -822,6 +870,9 @@ function closeSettingsModal() {
 function saveSettings() {
     const intros = document.getElementById("setting-intros").checked;
     localStorage.setItem("asuka_enable_intros", intros);
+
+    const freq = document.getElementById("setting-intro-freq").value;
+    localStorage.setItem("asuka_intro_freq", freq);
     // Reload radio logic if needed, but for now just saving for next fetch is enough.
 }
 
@@ -948,6 +999,7 @@ function loginUser(userData) {
     ASUKA_UID = userData.id;
     // UI Update
     updateAuthUI(userData);
+    loadPlaylists(); // Load playlists on login
 }
 
 function logout() {
@@ -964,6 +1016,7 @@ function checkAuthStatus() {
             const user = JSON.parse(saved);
             ASUKA_UID = user.id;
             updateAuthUI(user);
+            loadPlaylists(); // Load playlists on startup checks
         } catch (e) {
             console.error("Auth Error", e);
         }
@@ -1040,6 +1093,7 @@ function renderQueue(containerId = "queue-panel-list") {
             </div>
             <div class="queue-item-actions">
                 ${index !== currentIndex ? `<button class="queue-item-btn" onclick="playQueueItem(${index})" title="Reproducir"><i class="fa-solid fa-play"></i></button>` : ''}
+                <button class="queue-item-btn" onclick="openAddToPlaylistModal('${trackTitle.replace(/'/g, "\\'")}')" title="Añadir a Playlist"><i class="fa-solid fa-plus"></i></button>
                 <button class="queue-item-btn" onclick="removeQueueItem(${index})" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
             </div>
         `;
@@ -1249,3 +1303,695 @@ function updateNowPlaying(title, artist, cover) {
 
 // Initialize
 setupMediaSession();
+
+
+// --- CHAT LOGIC ---
+function toggleChat() {
+    const panel = document.getElementById("chat-panel");
+    panel.classList.toggle("active");
+    if (panel.classList.contains("active")) {
+        // Focus input
+        setTimeout(() => document.getElementById("chat-input").focus(), 100);
+        scrollToBottom();
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById("chat-input");
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    // 1. Render User Message
+    addChatBubble(msg, "user");
+    input.value = "";
+    scrollToBottom();
+
+    // 2. Loading State (Bot typing...)
+    const loadingId = addChatBubble("...", "bot");
+    scrollToBottom();
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg })
+        });
+
+        const data = await res.json();
+
+        // Remove loading bubble
+        document.getElementById(loadingId).remove();
+
+        // Render Bot Message
+        addChatBubble(data.response, "bot");
+
+    } catch (e) {
+        document.getElementById(loadingId).remove();
+        addChatBubble("Error de conexión. 🤕", "bot");
+    }
+
+    scrollToBottom();
+}
+
+function addChatBubble(text, type) {
+    const container = document.getElementById("chat-messages");
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${type}`;
+    bubble.innerText = text;
+    // Fix: Date.now() can be identical for consecutive synchronous calls, causing duplicate IDs.
+    const id = "msg-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+    bubble.id = id;
+    container.appendChild(bubble);
+    return id;
+}
+
+function scrollToBottom() {
+    const container = document.getElementById("chat-messages");
+    container.scrollTop = container.scrollHeight;
+}
+
+document.getElementById("chat-input")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") sendChatMessage();
+});
+
+async function loadChatHistory() {
+    try {
+        const res = await authenticatedFetch(`${API_URL}/chat/history`);
+        if (!res.ok) return; // Silent fail
+
+        const history = await res.json();
+        if (history.length > 0) {
+            // Clear default welcome message
+            const container = document.getElementById("chat-messages");
+            container.innerHTML = "";
+
+            history.forEach(msg => {
+                // DB returns {role: '...', parts: [{text: '...'}]}
+                // We map 'model' -> 'bot', 'user' -> 'user'
+                const role = (msg.role === 'model') ? 'bot' : 'user';
+                const text = msg.parts[0].text;
+                addChatBubble(text, role);
+            });
+            scrollToBottom();
+        }
+    } catch (e) {
+        console.error("Failed to load chat history", e);
+    }
+}
+
+// Call on load
+loadChatHistory();
+loadPlaylists();
+
+
+// --- PLAYLIST MANAGEMENT ---
+let currentPlaylistView = null; // Name of playlist currently viewing
+let songToAddTitle = null; // Temp storage for "Add to Playlist" modal
+
+async function loadPlaylists() {
+    const list = document.getElementById("playlist-list");
+    const addList = document.getElementById("add-playlist-list");
+
+    if (!list) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists`);
+        if (!res.ok) return; // Silent fail if not auth
+
+        const playlists = await res.json();
+
+        // Render Sidebar
+        list.innerHTML = "";
+        addList.innerHTML = "";
+
+        if (playlists.length === 0) {
+            list.innerHTML = '<li style="color:#666; font-size:0.8rem; padding:10px;">Sin playlists</li>';
+            addList.innerHTML = '<p style="text-align:center; color:#666;">No tienes playlists</p>';
+        }
+
+        playlists.forEach(p => {
+            // Sidebar Item
+            const li = document.createElement("li");
+            li.style.listStyle = "none";
+            li.innerHTML = `<a href="#" onclick="viewPlaylist('${p.name}')"><i class="fa-solid fa-list"></i> ${p.name}</a>`;
+            list.appendChild(li);
+
+            // Add Modal Item
+            const addItem = document.createElement("div");
+            addItem.className = "modal-list-item";
+            addItem.innerHTML = `
+                <div class="track-info"><h4>${p.name}</h4></div>
+                <button class="track-action" onclick="submitAddToPlaylist('${p.name}')"><i class="fa-solid fa-plus"></i></button>
+            `;
+            addList.appendChild(addItem);
+        });
+
+    } catch (e) {
+        console.error("Playlist load error", e);
+    }
+}
+
+// Create
+function openCreatePlaylistModal() {
+    document.getElementById("create-playlist-modal").style.display = "flex";
+    document.getElementById("new-playlist-name").focus();
+}
+
+function closeCreatePlaylistModal() {
+    document.getElementById("create-playlist-modal").style.display = "none";
+    document.getElementById("new-playlist-name").value = "";
+}
+
+
+function checkImportInput() {
+    const url = document.getElementById("new-playlist-url").value.trim();
+    const btn = document.getElementById("btn-create-playlist-submit");
+    if (url) {
+        btn.innerText = "Importar";
+        btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Importar`;
+    } else {
+        btn.innerText = "Crear";
+    }
+}
+
+async function submitCreatePlaylist() {
+    const name = document.getElementById("new-playlist-name").value;
+    const url = document.getElementById("new-playlist-url").value.trim();
+
+    if (!name) return;
+
+    const btn = document.getElementById("btn-create-playlist-submit");
+    const originalText = btn.innerHTML;
+
+    if (url) {
+        // Import Mode
+        btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div> Importando...';
+        btn.disabled = true;
+
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/import`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, url: url })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                showToast(`Importada: ${data.count} canciones`, "success");
+                loadPlaylists();
+                closeCreatePlaylistModal();
+                // Clear inputs
+                document.getElementById("new-playlist-name").value = "";
+                document.getElementById("new-playlist-url").value = "";
+                checkImportInput(); // Reset Button
+            } else {
+                const err = await res.json();
+                showToast("Error: " + (err.detail || "Fallo al importar"));
+            }
+        } catch (e) {
+            showToast("Error de conexión");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+
+    } else {
+        // Create Empty Mode
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, songs: [] })
+            });
+
+            if (res.ok) {
+                showToast("Playlist creada");
+                loadPlaylists();
+                closeCreatePlaylistModal();
+                document.getElementById("new-playlist-name").value = "";
+            } else {
+                showToast("Error creando playlist");
+            }
+        } catch (e) {
+            showToast("Error de conexión");
+        }
+    }
+}
+
+// Add To
+function openAddToPlaylistModal(title) {
+    if (!ASUKA_UID) {
+        showToast("Inicia sesión primero", "error");
+        return;
+    }
+    songToAddTitle = title;
+    document.getElementById("add-to-playlist-modal").style.display = "flex";
+    // Reload to ensure fresh list
+    loadPlaylists();
+}
+
+function closeAddToPlaylistModal() {
+    document.getElementById("add-to-playlist-modal").style.display = "none";
+    songToAddTitle = null;
+}
+
+async function submitAddToPlaylist(playlistName) {
+    if (!songToAddTitle) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: songToAddTitle })
+        });
+
+        if (!res.ok) throw new Error("Error guardando canción");
+
+        showToast(`Añadida a "${playlistName}"`, "success");
+        closeAddToPlaylistModal();
+
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+// View
+async function viewPlaylist(name) {
+    currentPlaylistView = name;
+    showSection('playlist'); // Need to handle this case
+
+    document.getElementById("playlist-title-header").innerText = name;
+    const container = document.getElementById("playlist-songs-list");
+    container.innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${name}`);
+        if (!res.ok) throw new Error("No se pudo cargar");
+
+        const songs = await res.json();
+
+        // Update Meta Info
+        const meta = document.getElementById("playlist-meta-info");
+        if (meta) meta.innerHTML = `<i class="fa-solid fa-music"></i> &nbsp; ${songs.length} canciones`;
+
+        container.innerHTML = "";
+
+        if (songs.length === 0) {
+            container.innerHTML = '<div class="queue-empty"><p>Playlist vacía</p></div>';
+            return;
+        }
+
+        songs.forEach((s, i) => {
+            const el = document.createElement("div");
+            el.className = "track-item";
+            el.innerHTML = `
+                <div style="width:30px; text-align:center; color:#666;">${i + 1}</div>
+                <div class="track-info"><h4>${s.title}</h4></div>
+                <div style="display:flex; gap:10px;">
+                    <button class="track-action" onclick="playPlaylistContext('${name}', ${i})"><i class="fa-solid fa-play"></i></button>
+                    <button class="track-action" style="border-color:rgba(255, 71, 87, 0.3); color:#ff4757;" onclick="deleteSongFromPlaylist('${name}', ${i})" title="Quitar de la lista">
+                        <i class="fa-solid fa-trash" style="font-size:0.8rem;"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(el);
+        });
+
+    } catch (e) {
+        container.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+    }
+}
+
+async function deleteCurrentPlaylist() {
+    if (!currentPlaylistView) return;
+
+    showConfirm(`¿Borrar playlist "${currentPlaylistView}"?`, async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/${currentPlaylistView}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                showToast("Playlist eliminada", "info");
+                loadPlaylists();
+                showSection('home');
+            }
+        } catch (e) {
+            showToast("Error eliminando", "error");
+        }
+    });
+}
+
+async function playCurrentPlaylistContext() {
+    // Play full playlist starting from 0
+    playPlaylistContext(currentPlaylistView, 0);
+}
+
+async function playPlaylistContext(name, startIndex) {
+    try {
+        const res = await authenticatedFetch(`${API_URL}/playlists/${name}`);
+        const songs = await res.json();
+
+        if (songs.length === 0) return;
+
+        // Convert to track structure
+        const tracks = songs.map(s => ({
+            title: s.title,
+            url: null,
+            is_intro: false
+        }));
+
+        // Replace Queue
+        currentQueue = tracks;
+        currentIndex = startIndex;
+
+        loadAndPlay(currentQueue[currentIndex]);
+        renderQueue();
+        showToast(`Reproduciendo "${name}"`, "success");
+
+    } catch (e) {
+        console.error(e);
+        showToast("Error reproduciendo playlist");
+    }
+}
+
+async function deleteSongFromPlaylist(playlistName, index) {
+    showConfirm("¿Quitar esta canción de la lista?", async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/playlists/${playlistName}/songs/${index}`, {
+                method: "DELETE"
+            });
+
+            if (res.ok) {
+                showToast("Canción eliminada");
+                // Refresh view
+                viewPlaylist(playlistName);
+            } else {
+                const err = await res.json();
+                showToast("Error: " + (err.detail || "No se pudo eliminar"));
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión");
+        }
+    });
+}
+
+
+
+// --- Track Options Popover Logic ---
+function toggleTrackOptions(event, title, historyId, mode) {
+    event.stopPropagation(); // Prevent closing immediately
+
+    // Close any existing dropdowns
+    closeTrackOptionsDropdown();
+
+    // Create dropdown
+    const dropdown = document.createElement("div");
+    dropdown.className = "track-options-dropdown";
+    dropdown.id = "track-options-dropdown";
+
+    // 1. Add to Queue
+    const btnQueue = document.createElement("div");
+    btnQueue.className = "track-options-item";
+    btnQueue.innerHTML = `<i class="fa-solid fa-list"></i> Añadir a la Cola`;
+    btnQueue.onclick = () => {
+        playHistoryItem(title);
+        closeTrackOptionsDropdown();
+    };
+    dropdown.appendChild(btnQueue);
+
+    // 2. Add to Playlist
+    const btnPlaylist = document.createElement("div");
+    btnPlaylist.className = "track-options-item";
+    btnPlaylist.innerHTML = `<i class="fa-solid fa-plus"></i> Playlist...`;
+    btnPlaylist.onclick = () => {
+        openAddToPlaylistModal(title);
+        closeTrackOptionsDropdown();
+    };
+    dropdown.appendChild(btnPlaylist);
+
+    // 3. Remove from History (Only if mode == history)
+    if (mode === 'history') {
+        const btnRemove = document.createElement("div");
+        btnRemove.className = "track-options-item";
+        btnRemove.style.color = "#ff4757";
+        btnRemove.innerHTML = `<i class="fa-solid fa-trash"></i> Eliminar`;
+        btnRemove.onclick = () => {
+            removeFromHistory(historyId, title); // Pass ID
+            closeTrackOptionsDropdown();
+        };
+        dropdown.appendChild(btnRemove);
+    }
+
+    document.body.appendChild(dropdown);
+
+    // Positioning
+    const rect = event.currentTarget.getBoundingClientRect();
+    const dropHeight = mode === 'history' ? 120 : 80; // approx height
+
+    // Default open right-bottom
+    let top = rect.bottom + 5;
+    let left = rect.left - 100; // Shift left a bit
+
+    // Access window dimensions
+    if (top + dropHeight > window.innerHeight) {
+        top = rect.top - dropHeight - 5; // Flip up
+    }
+    if (left + 180 > window.innerWidth) {
+        left = window.innerWidth - 190;
+    }
+
+    dropdown.style.top = `${top + window.scrollY}px`;
+    dropdown.style.left = `${left + window.scrollX}px`;
+
+    // Click outside listener
+    setTimeout(() => {
+        document.addEventListener("click", closeTrackOptionsDropdown);
+    }, 0);
+}
+
+function closeTrackOptionsDropdown() {
+    const el = document.getElementById("track-options-dropdown");
+    if (el) el.remove();
+    document.removeEventListener("click", closeTrackOptionsDropdown);
+}
+
+
+async function removeFromHistory(id, title) {
+    showConfirm(`¿Borrar "${title}" del historial?`, async () => {
+        try {
+            const res = await authenticatedFetch(`${API_URL}/history`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            });
+
+            if (res.ok) {
+                showToast("Borrado");
+                loadHistory();
+            } else {
+                showToast("Error al borrar", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión");
+        }
+    });
+}
+// --- Search Empty State & Helpers ---
+function getRecentSearches() {
+    try {
+        const data = localStorage.getItem("asuka_recent_searches");
+        return data ? JSON.parse(data) : [];
+    } catch (e) { return []; }
+}
+
+function saveRecentSearch(query) {
+    let recent = getRecentSearches();
+    recent = recent.filter(q => q.toLowerCase() !== query.toLowerCase()); // Remove dupes
+    recent.unshift(query); // Add to top
+    if (recent.length > 5) recent.pop(); // Limit to 5
+    localStorage.setItem("asuka_recent_searches", JSON.stringify(recent));
+}
+
+function deleteRecentSearch(e, query) {
+    if (e) e.stopPropagation();
+    let recent = getRecentSearches();
+    recent = recent.filter(q => q !== query);
+    localStorage.setItem("asuka_recent_searches", JSON.stringify(recent));
+    renderSearchEmptyState();
+}
+
+function performSearch(query) {
+    const input = document.getElementById("global-search");
+    input.value = query;
+    // Trigger the enter key event logic essentially, OR just extract that logic into a function
+    // For now, let's create a synthesized event or just refactor. 
+    // Refactoring search logic into doSearch(query) is better.
+    doSearch(query);
+}
+
+// --- Clear Search ---
+function clearSearch() {
+    document.getElementById("global-search").value = "";
+    renderSearchEmptyState();
+}
+
+// Extracting search logic to be reusable
+async function doSearch(query) {
+    if (!query) return;
+    saveRecentSearch(query); // Save entry
+
+    showSection('search');
+    const container = document.getElementById("search-results");
+    container.innerHTML = '<div style="text-align:center; padding:20px;">Buscan2... 🕵️‍♀️</div>';
+
+    try {
+        const [searchRes, favRes] = await Promise.all([
+            fetch(`${API_URL}/search?q=${encodeURIComponent(query)}`),
+            authenticatedFetch(`${API_URL}/favorites`)
+        ]);
+
+        const data = await searchRes.json();
+        const favorites = favRes.ok ? await favRes.json() : [];
+        const favSet = new Set(favorites.map(f => f.title));
+
+        container.innerHTML = "";
+
+        // Add Back Button Header
+        const header = document.createElement("div");
+        header.style.marginBottom = "15px";
+        header.style.display = "flex";
+        header.style.alignItems = "center";
+        header.style.gap = "10px";
+        header.innerHTML = `
+            <button onclick="clearSearch()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.1rem; padding:5px;">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <span style="font-size:1.1rem; font-weight:bold;">Resultados para "${query}"</span>
+        `;
+        container.appendChild(header);
+
+        if (data.length === 0) {
+            container.innerHTML += "<div style='text-align:center; margin-top:20px;'>No encontré nada :(</div>";
+            return;
+        }
+
+        data.forEach(track => {
+            const el = document.createElement("div");
+            el.className = "track-item";
+            let thumbContent = '', thumbStyle = '';
+
+            if (track.thumbnail) {
+                thumbStyle = `background-image: url('${track.thumbnail}'); background-size: cover;`;
+            } else {
+                thumbStyle = `background:#333; display:flex; align-items:center; justify-content:center;`;
+                thumbContent = '<i class="fa-solid fa-music"></i>';
+            }
+
+            const isLiked = favSet.has(track.title);
+            const heartClass = isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart";
+            const heartColor = isLiked ? "#ff4757" : "#b3b3b3";
+            const safeTitle = track.title.replace(/'/g, "\\'");
+
+            el.innerHTML = `
+                <div class="track-img" style="${thumbStyle}">${thumbContent}</div>
+                <div class="track-info">
+                    <h4>${track.title}</h4>
+                    <p>${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}</p>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="track-action" title="Me gusta" style="color: ${heartColor};" onclick="toggleHistoryLike(this, '${safeTitle}')">
+                        <i class="${heartClass}"></i>
+                    </button>
+                    <button class="track-action" title="Opciones" onclick="toggleTrackOptions(event, '${safeTitle}', null, 'search')">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                </div>
+            `;
+            el.onclick = (e) => {
+                if (e.target.closest('.track-action')) return;
+                playTrack(track);
+            };
+            container.appendChild(el);
+        });
+
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = "Error buscando :(";
+    }
+}
+
+
+
+function renderSearchEmptyState() {
+    const container = document.getElementById("search-results");
+    if (!container) return;
+
+    // Asuka Messages (Personality)
+    const messages = [
+        "¿Qué quieres escuchar hoy, baka? 😒",
+        "Pon algo bueno, no quiero que me sangren los oídos. 🎧",
+        "Estoy lista. Sorpréndeme. ✨",
+        "¿Otra vez tú? Venga, elige rápido. 🕒",
+        "Hoy tengo ganas de rock... ¿y tú? 🎸"
+    ];
+    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+    const recent = getRecentSearches();
+
+    // Trending static items
+    const trending = [
+        { name: "Top Global", icon: "fa-earth-americas", query: "Top 50 Global" },
+        { name: "Viral TikTok", icon: "fa-hashtag", query: "TikTok Viral Songs" },
+        { name: "Anime Openings", icon: "fa-tv", query: "Best Anime Openings 2024" },
+        { name: "Lo-Fi Beats", icon: "fa-mug-hot", query: "Lofi Hip Hop Radio" }
+    ];
+
+    let recentHTML = '';
+    if (recent.length > 0) {
+        recentHTML = `
+            <div style="margin-top:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="font-size:1rem; opacity:0.7; margin:0;"><i class="fa-solid fa-clock-rotate-left"></i> Recientes</h3>
+                    <button onclick="localStorage.removeItem('asuka_recent_searches'); renderSearchEmptyState();" style="background:none; border:none; color:#ff4757; cursor:pointer; font-size:0.8rem;">Borrar Todo</button>
+                </div>
+                <div class="list-layout">
+                    ${recent.map(q => `
+                        <div class="recent-item" onclick="performSearch('${q.replace(/'/g, "\\'")}')">
+                            <span class="recent-text">${q}</span>
+                            <button class="track-action" style="width:28px; height:28px; border:none;" onclick="deleteRecentSearch(event, '${q.replace(/'/g, "\\'")}')">
+                                <i class="fa-solid fa-xmark" style="font-size:0.8rem;"></i>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    const trendingHTML = `
+        <div style="margin-top:30px;">
+             <h3 style="font-size:1rem; opacity:0.7; margin-bottom:10px;"><i class="fa-solid fa-fire"></i> Tendencias</h3>
+             <div class="trending-grid">
+                ${trending.map(t => `
+                    <div class="trending-card" onclick="performSearch('${t.query}')">
+                        <div class="trending-icon"><i class="fa-solid ${t.icon}"></i></div>
+                        <div style="font-size:0.9rem; font-weight:bold;">${t.name}</div>
+                    </div>
+                `).join('')}
+             </div>
+        </div>
+    `;
+
+    container.innerHTML = `
+        <div style="padding:20px; max-width:800px; margin:0 auto;">
+            <div style="text-align:center; margin-bottom:40px; margin-top:20px;">
+                <img src="asuka.png" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin-bottom:15px; border: 2px solid #ff4757; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.3);">
+                <p style="font-style:italic; opacity:0.8; font-size:1.1rem;">"${randomMsg}"</p>
+            </div>
+            ${recentHTML}
+            ${trendingHTML}
+        </div>
+    `;
+}

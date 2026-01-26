@@ -13,6 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Asuka Music">
     <link rel="apple-touch-icon" href="asuka.png">
+    <link rel="icon" type="image/png" href="asuka.png">
 
     <link rel="stylesheet" href="style.css?v=27">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
@@ -45,10 +46,16 @@
                 <a href="#" class="active" onclick="showSection('home')"><i class="fa-solid fa-house"></i> Inicio</a>
                 <a href="#" onclick="showSection('search')"><i class="fa-solid fa-search"></i> Buscar</a>
                 <a href="#" onclick="showSection('library')"><i class="fa-solid fa-book"></i> Biblioteca</a>
+                <a href="#" onclick="showSection('stats')"><i class="fa-solid fa-chart-pie"></i> Perfil</a>
                 <a href="#" onclick="showSection('queue')"><i class="fa-solid fa-list-ol"></i> Cola</a>
             </nav>
             <div class="playlists-section">
-                <h3>Mis Playlists</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0;">Mis Playlists</h3>
+                    <button onclick="openCreatePlaylistModal()"
+                        style="background:none; border:none; color:var(--text-sec); cursor:pointer;"><i
+                            class="fa-solid fa-plus"></i></button>
+                </div>
                 <ul id="playlist-list">
                     <!-- JS Injected -->
                 </ul>
@@ -191,6 +198,25 @@
                     <div class="list-layout" id="queue-list"></div>
                 </div>
 
+                <div id="playlist-view" class="view" style="display: none;">
+                    <div class="playlist-header">
+                        <div class="playlist-info">
+                            <h2 id="playlist-title-header">Nombre Playlist</h2>
+                            <p id="playlist-meta-info" style="opacity:0.7; font-size:0.9rem;"><i
+                                    class="fa-solid fa-music"></i> &nbsp; Explorar Contenido</p>
+                        </div>
+                        <div class="playlist-actions">
+                            <button class="btn-primary" onclick="playCurrentPlaylistContext()">
+                                <i class="fa-solid fa-play"></i> Reproducir Todo
+                            </button>
+                            <button class="btn-danger" onclick="deleteCurrentPlaylist()" title="Eliminar Playlist">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="list-layout" id="playlist-songs-list"></div>
+                </div>
+
                 <div id="library-view" class="view" style="display: none;">
                     <h1>Tu Biblioteca</h1>
 
@@ -204,6 +230,28 @@
                     <div class="list-layout" id="favorites-list" style="display: none;"></div>
                 </div>
             </div>
+
+            <div id="stats-view" class="view" style="display: none;">
+                <h1>Tu Música 📊</h1>
+
+                <div
+                    style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-bottom:30px;">
+                    <div class="card glass" style="text-align:center; padding:20px;">
+                        <h2 id="stats-total" style="font-size:3rem; margin:0; color:var(--primary);">0</h2>
+                        <p style="margin:0; opacity:0.7;">Canciones Escuchadas</p>
+                    </div>
+                    <div class="card glass" style="text-align:center; padding:20px;">
+                        <h2 style="font-size:3rem; margin:0;" id="stats-rank">👶</h2>
+                        <p style="margin:0; opacity:0.7;">Nivel Asuka</p>
+                    </div>
+                </div>
+
+                <h3>🔥 Top 5 Canciones</h3>
+                <div class="list-layout" id="stats-top-list">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+
         </main>
 
         <!-- Player -->
@@ -246,6 +294,10 @@
             </div>
 
             <div class="volume-controls">
+                <button id="btn-chat" onclick="toggleChat()" class="btn-queue-toggle btn-chat-toggle"
+                    title="Chat con Asuka">
+                    <i class="fa-solid fa-comment-dots"></i>
+                </button>
                 <button id="btn-queue" onclick="toggleQueue()" class="btn-queue-toggle" title="Cola de Reproducción">
                     <i class="fa-solid fa-list"></i>
                     <span id="queue-count" class="queue-count-badge">0</span>
@@ -297,12 +349,30 @@
                 </label>
             </div>
 
+            <!-- Frequency Setting -->
+            <div
+                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; padding:10px; background:rgba(255,255,255,0.05); border-radius:10px;">
+                <div>
+                    <h4 style="margin:0;">Frecuencia</h4>
+                    <p style="margin:0; font-size:0.8rem; color:#888;">Hablar cada X canciones</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="freq-display" style="font-weight:bold; color:var(--primary);">3</span>
+                    <input type="range" id="setting-intro-freq" min="1" max="5" value="3" step="1"
+                        oninput="document.getElementById('freq-display').innerText = this.value"
+                        onchange="saveSettings()" style="width:80px; accent-color:var(--primary);">
+                </div>
+            </div>
+
             <!-- Theme Selector -->
             <div style="margin-bottom: 15px;">
                 <label style="display:block; color:#888; margin-bottom:10px; font-size:0.9rem;">Color del Tema</label>
                 <div id="theme-colors" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:10px;">
                     <!-- Generated by JS -->
                 </div>
+
+
+
 
 
             </div>
@@ -312,6 +382,38 @@
             </div>
         </div>
     </div>
+
+    <!-- Create Playlist Modal -->
+    <div id="create-playlist-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass">
+            <h2><i class="fa-solid fa-list-music"></i> Nueva Playlist</h2>
+            <p>Escribe un nombre para tu lista:</p>
+            <input type="text" id="new-playlist-name" class="modal-input" placeholder="Ej: Favoritos, Gym, Triste..."
+                autocomplete="off">
+
+            <p style="margin-top:15px;">🔗 Importar de YouTube (Opcional):</p>
+            <input type="text" id="new-playlist-url" class="modal-input"
+                placeholder="https://www.youtube.com/playlist?list=..." autocomplete="off" oninput="checkImportInput()">
+            <div class="modal-buttons">
+                <button class="tab-btn" onclick="closeCreatePlaylistModal()">Cancelar</button>
+                <button class="tab-btn active" id="btn-create-playlist-submit"
+                    onclick="submitCreatePlaylist()">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add To Playlist Modal -->
+    <div id="add-to-playlist-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass" style="max-height:400px; overflow-y:auto;">
+            <h2>Guardar en...</h2>
+            <div id="add-playlist-list" class="list-layout" style="margin-bottom:20px;">
+                <!-- JS Populated -->
+            </div>
+            <button class="tab-btn" onclick="closeAddToPlaylistModal()" style="width:100%;">Cancelar</button>
+        </div>
+    </div>
+
+
 
     <!-- Custom Radio Modal -->
     <div id="custom-radio-modal" class="modal-overlay" style="display: none;">
@@ -381,6 +483,23 @@
         </div>
     </div>
 
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="chat-panel">
+        <div class="chat-header">
+            <h3><i class="fa-solid fa-comments"></i> Asuka Chat</h3>
+            <button onclick="toggleChat()" class="chat-close-btn"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="chat-bubble bot">
+                Hola. ¿Qué quieres? 😒
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Escribe algo..." autocomplete="off">
+            <button onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -397,7 +516,7 @@
     </div>
 
     <iframe id="radio-audio-frame" style="display:none;" allow="autoplay"></iframe>
-    <script src="app.js?v=65"></script>
+    <script src="app.js?v=66"></script>
 </body>
 
 </html>

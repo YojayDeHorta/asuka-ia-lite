@@ -1,4 +1,5 @@
 import yt_dlp
+import os
 import config
 from utils.logger import setup_logger
 import asyncio
@@ -41,6 +42,42 @@ class MusicCore:
         search_opts = self.ytdl_opts.copy()
         search_opts['extract_flat'] = True # No descargar info detallada de video
         self.search_ytdl = yt_dlp.YoutubeDL(search_opts)
+
+    async def extract_playlist_info(self, url):
+        """
+        Extracts playlist videos efficiently using search_ytdl (flat extraction).
+        Returns a list of dicts: {'title': str, 'url': str (original_url), 'is_intro': False}
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            # extract_flat is already set in search_ytdl options
+            info = await loop.run_in_executor(None, lambda: self.search_ytdl.extract_info(url, download=False))
+            
+            if 'entries' not in info:
+                return []
+                
+            songs = []
+            for entry in info['entries']:
+                if not entry: continue
+                # In flat extraction, entry usually has 'title' and 'url' or 'id'
+                title = entry.get('title', 'Unknown Title')
+                # Construct URL if missing (usually needed for YouTube)
+                video_url = entry.get('url')
+                if not video_url:
+                    video_id = entry.get('id')
+                    if video_id:
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                
+                if video_url:
+                    songs.append({
+                        'title': title,
+                        'url': video_url,
+                        'is_intro': False
+                    })
+            return songs
+        except Exception as e:
+            logger.error(f"Error extracting playlist: {e}")
+            return []
 
     async def search(self, query, limit=None):
         """
@@ -162,6 +199,8 @@ class MusicCore:
                 return None
 
             if 'entries' in data:
+                if not data['entries']: # Empty list check
+                    return None
                 data = data['entries'][0]
                 
             return {
@@ -192,44 +231,63 @@ class MusicCore:
         mood: str|None - Si se especifica (ej: "Rock", "Lofi"), fuerza ese estilo.
         enable_intros: bool - Si es False, no genera intro (audio/texto vacío).
         """
+        import random 
 
         # 1. Preparar Prompt
         immediate_context = ", ".join(recent_history) if recent_history else "Ninguna (Empieza algo nuevo)"
-        older_context = ", ".join(older_history) if older_history else "Sin historial previo"
+        
+        # KEY CHANGE: Treat older_history as NEGATIVE PROMPT (Avoid List)
+        # We only take the titles to save tokens, assuming formats like "Artist - Title"
+        avoid_list = ", ".join(older_history) if older_history else "Ninguna"
         
         prompt_instruction = ""
+        
+        # Inject Randomness to avoid determinism (e.g. always starting with same song)
+        random_seed = random.choice(["Sorprende con una joya oculta", "Algo clásico pero no cliché", "Una novedad reciente", "Algo experimental", " Energía pura"])
         
         if mood:
             # MOOD OVERRIDE
             prompt_instruction = (
                 f"Eres un DJ experto. El usuario ha pedido una sesión de estilo: **{mood}**.\n"
-                f"IGNORA cualquier historial previo que no encaje con {mood}. \n"
-                f"Tu única misión es poner la mejor canción posible de género {mood}.\n"
-                f"TENDENCIA RECIENTE: [{immediate_context}] (Úsalas solo para no repetir)."
+                f"FACTOR SORPRESA: {random_seed}. \n"
+                f"LISTA NEGRA (Prohibido repetir): [{avoid_list}].\n"
+                f"TENDENCIA RECIENTE: [{immediate_context}].\n"
+                f"Tu misión: Poner la mejor canción de {mood} que NO esté en la lista negra ni sea repetitiva."
             )
+            if is_start:
+                prompt_instruction += " NO elijas la canción más obvia o popular (ej: No pongas 'Ride on Time' si es City Pop, busca algo más). Se original."
         else:
             # STANDARD SMART DJ
             prompt_instruction = (
-                f"Eres un DJ experto. "
-                f"TENDENCIA ACTUAL (Últimas 5 canciones): [{immediate_context}]. "
-                f"HISTORIAL ANTERIOR (Contexto de fondo): [{older_context}]. "
+                f"Eres un DJ experto (Asuka). "
+                f"TENDENCIA ACTUAL: [{immediate_context}]. "
+                f"LISTA NEGRA (Ya sonaron hace poco): [{avoid_list}]. "
+                f"FACTOR ALEATORIO: {random_seed}. "
                 
                 "Tu tarea es elegir la siguiente canción. "
-                "REGLA DE ORO DE ADAPTACIÓN: Si la 'TENDENCIA ACTUAL' muestra un cambio de género o vibe respecto al 'HISTORIAL ANTERIOR', "
-                "IGNORA el historial viejo y sigue la NUEVA tendencia. El usuario quiere cambiar de aires. "
-                "IMPORTANTE: NO REPITAS ninguna canción del historial reciente."
+                "REGLA 1: Si la TENDENCIA cambia de género, síguela. "
+                "REGLA 2: JAMÁS repitas una canción de la LISTA NEGRA."
             )
 
         if is_start:
              start_msg = "Arrancamos con esta" if not mood else f"Iniciando modo {mood}"
              prompt_instruction += (
-                f" Esta es la PRIMERA canción de la sesión. "
-                f"Di algo como '{start_msg}'. ¡Genera HYPE!"
+                f" Esta es la PRIMERA canción de la sesión. Di algo como '{start_msg}'."
             )
+
+        import datetime
+        now = datetime.datetime.now()
+        hour = now.hour
+        time_context = "Madrugada (Todos duermen)"
+        if 6 <= hour < 12: time_context = "Mañana (Energía)"
+        elif 12 <= hour < 19: time_context = "Tarde (Sol y Relax)"
+        elif 19 <= hour <= 23: time_context = "Noche (Oscuridad)"
 
         prompt = (
             f"{prompt_instruction} "
-            "Además, genera una intro corta (máx 20 palabras) con personalidad de 'locutora Tsundere de anime'. "
+            f"CONTEXTO TEMPORAL: {time_context}. "
+            "COMENTARIO OBLIGATORIO: Di un dato curioso real o tu opinión personal (estilo Tsundere) sobre la canción que elijas. Demuestra que sabes de música. "
+            "Genera una intro corta (máx 25 palabras). "
             "Responde con un JSON válido: {\"song\": \"Artista - Canción\", \"intro\": \"Frase en español\"}"
         )
         
@@ -274,6 +332,15 @@ class MusicCore:
         # 4. Resolver Canción
         song_data = await self.get_stream_url(song_name)
         
+        # Logic Fix: If song failed (None), DISCARD the intro too. 
+        # Prevents "Intro -> Intro -> Intro" chains when songs fail.
+        if not song_data:
+            if intro_audio_path and os.path.exists(intro_audio_path):
+                try:
+                    os.remove(intro_audio_path)
+                except: pass
+            intro_audio_path = None
+
         return {
             'song_query': song_name,
             'intro_text': intro if enable_intros else "", # Hide text if disabled

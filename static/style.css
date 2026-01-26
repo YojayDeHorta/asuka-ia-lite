@@ -17,12 +17,14 @@
 
 /* Micro-animations */
 button,
-.nav-links a {
+.nav-links a,
+#playlist-list a {
     transition: transform 0.1s ease, background 0.2s, color 0.2s;
 }
 
 button:active,
-.nav-links a:active {
+.nav-links a:active,
+#playlist-list a:active {
     transform: scale(0.95);
 }
 
@@ -64,7 +66,8 @@ body {
     gap: 10px;
 }
 
-.nav-links a {
+.nav-links a,
+#playlist-list a {
     color: var(--text-sec);
     text-decoration: none;
     padding: 10px;
@@ -76,7 +79,8 @@ body {
 }
 
 .nav-links a:hover,
-.nav-links a.active {
+.nav-links a.active,
+#playlist-list a:hover {
     color: #fff;
     background: var(--glass);
 }
@@ -496,6 +500,118 @@ header {
     justify-content: center;
     gap: 15px;
 }
+
+/* Reusable Modal Input */
+.modal-input {
+    width: 100%;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 1rem;
+    margin-bottom: 20px;
+    outline: none;
+    text-align: center;
+    transition: 0.3s;
+}
+
+.modal-input:focus {
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.2);
+}
+
+.modal-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 1px solid transparent;
+}
+
+.modal-list-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateX(5px);
+}
+
+.modal-list-item h4 {
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Playlist View Styles */
+.playlist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.playlist-info h2 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 5px;
+    background: linear-gradient(135deg, #fff 0%, #b3b3b3 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.playlist-info p {
+    color: var(--text-sec);
+    font-size: 0.9rem;
+}
+
+.playlist-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 0, 85, 0.5);
+}
+
+.btn-danger {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    padding: 10px 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-danger:hover {
+    background: rgba(255, 59, 48, 0.2);
+    border-color: #ff3b30;
+}
+
 
 /* Toggle Switch */
 .switch {
@@ -1027,6 +1143,278 @@ input:checked+.slider:before {
     box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
 }
 
-.btn-confirm-ok:hover {
-    filter: brightness(1.2);
+/* --- Chat Panel --- */
+.chat-panel {
+    position: fixed;
+    right: 90px;
+    bottom: 100px;
+    width: 350px;
+    height: 500px;
+    background: rgba(20, 20, 25, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    z-index: 4000;
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-panel.active {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.chat-header {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 15px 15px 0 0;
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--primary);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chat-close-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+}
+
+.chat-close-btn:hover {
+    color: #fff;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    max-width: 80%;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.chat-bubble.bot {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ddd;
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+.chat-bubble.user {
+    background: var(--primary);
+    color: #fff;
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-input-area {
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input-area input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 20px;
+    color: #fff;
+    outline: none;
+}
+
+.chat-input-area button {
+    background: var(--primary);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Mobile Chat specific */
+@media (max-width: 768px) {
+    .chat-panel {
+        width: 100%;
+        height: 100%;
+        /* Full screen overlay */
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 0;
+        background: #121212;
+        transform: translateY(100%);
+        z-index: 6000;
+    }
+
+    .chat-panel.active {
+        transform: translateY(0);
+    }
+
+    .btn-chat-toggle {
+        /* Mobile Position: Left of player controls? 
+           Parent .volume-controls is absolute positioned.
+           Let's move this button specifically.
+        */
+        position: fixed;
+        /* Or absolute relative to player bar */
+        left: 20px;
+        bottom: 55px;
+        /* Aligned with queue button roughly */
+        z-index: 200;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+    }
+}
+
+/* --- Scrollbar Customization --- */
+/* Global Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Specific fix for Chat Panel to ensure it matches */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+
+/* Track Options dropdown */
+.track-options-dropdown {
+    position: absolute;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 5px;
+    min-width: 180px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    animation: fadeIn 0.2s ease;
+}
+
+.track-options-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    color: var(--text-sec);
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: background 0.2s, color 0.2s;
+}
+
+.track-options-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.track-options-item i {
+    width: 20px;
+    text-align: center;
+}
+
+/* Recent Search Item */
+.recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.05); /* Subtle glass */
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-bottom: 8px;
+}
+
+.recent-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(5px); /* Slide effect */
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.recent-text {
+    flex: 1;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+/* Trending Card */
+.trending-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.trending-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.trending-card:hover {
+    transform: translateY(-5px);
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(0,0,0,0) 100%);
+    border-color: rgba(255, 71, 87, 0.3);
+}
+
+.trending-icon {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: var(--primary);
 }

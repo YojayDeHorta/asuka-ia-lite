@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import asyncio
 from utils.music_core import MusicCore
 from utils import database
+from utils import ai_core 
 from utils.logger import setup_logger
 import config
 
@@ -65,13 +66,65 @@ async def resolve_stream(q: str, request: Request):
         logger.error(f"Resolve error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+        return data
+    except Exception as e:
+        logger.error(f"Resolve error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Chat Persistence ---
+class ChatMessage(BaseModel):
+    message: str
+    history: list[dict] = [] # Legacy support, but we rely on DB now
+
+@app.post("/api/chat")
+async def chat_interaction(ctx: ChatMessage, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Save User Message
+        database.add_chat_message(user_id, "user", ctx.message)
+
+        # 2. Load History from DB (Context)
+        # We ignore ctx.history from frontend to ensure consistency
+        db_history = database.get_chat_history(user_id, limit=20) 
+        
+        # 3. Generate Response
+        response = await ai_core.generate_response(ctx.message, db_history) # ai_core expects history format?
+        
+        # 4. Save Bot Response
+        database.add_chat_message(user_id, "model", response)
+
+        return {"response": response}
+    except Exception as e:
+        logger.error(f"Chat Error: {e}")
+        return {"response": "Error cerebral... inténtalo de nuevo."}
+
+@app.get("/api/chat/history")
+def get_chat_history_endpoint(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # Get raw history
+        history = database.get_chat_history(user_id, limit=50)
+        return history
+    except Exception as e:
+        logger.error(f"Chat History Error: {e}")
+        return []
 
 # Playlist Endpoints (Reusing Database)
 @app.get("/api/playlists")
-def get_playlists():
+def get_playlists(request: Request):
     try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
         # Get list [(name, date), ...]
-        raw = database.get_user_playlists(WEB_USER_ID)
+        raw = database.get_user_playlists(user_id)
         return [{"name": r[0], "created_at": r[1]} for r in raw]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -83,20 +136,42 @@ def get_history(request: Request):
         uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
         guild_id = int(uid_str) if uid_str.isdigit() else 0
         
-        # Get raw list
-        songs = database.get_recent_songs(guild_id, limit=50) # Get last 50
+        # Get raw list [(id, title), ...]
+        songs = database.get_recent_songs(guild_id, limit=50) 
         
         # Format as list of objects
-        return [{"title": title} for title in songs]
+        return [{"id": r[0], "title": r[1]} for r in songs]
     except Exception as e:
          logger.error(f"History fetch error: {e}")
          return []
 
+class HistoryDeleteRequest(BaseModel):
+    id: int # Changed from title: str
+
+@app.delete("/api/history")
+def delete_history_item(req: HistoryDeleteRequest, request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # Call with ID
+        success = database.delete_from_history(user_id, req.id)
+        if not success:
+             raise HTTPException(status_code=500, detail="Database error or unauthorized")
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/playlists/{name}")
-def get_playlist_content(name: str):
+def get_playlist_content(name: str, request: Request):
     import json
     try:
-        json_str = database.get_playlist(WEB_USER_ID, name)
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        json_str = database.get_playlist(user_id, name)
         if not json_str:
              raise HTTPException(status_code=404, detail="Playlist not found")
         return json.loads(json_str)
@@ -124,7 +199,7 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         
         older = []
         try:
-             raw_history = database.get_recent_songs(guild_id, limit=20) 
+             raw_history = database.get_recent_songs(guild_id, limit=50) 
              older = raw_history
         except Exception as db_e:
              logger.error(f"Failed to fetch DB history: {db_e}")
@@ -142,14 +217,53 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         logger.error(f"Radio API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/playlists")
-def save_playlist(playlist: PlaylistCreate):
+
+class PlaylistImport(BaseModel):
+    name: str
+    url: str
+
+@app.post("/api/playlists/import")
+async def import_playlist(data: PlaylistImport, request: Request):
     import json
     try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        if not data.url or not data.name:
+            raise HTTPException(status_code=400, detail="Missing name or url")
+
+        # Extract Songs
+        songs = await core.extract_playlist_info(data.url)
+        if not songs:
+             raise HTTPException(status_code=400, detail="No songs found in URL")
+
+        # Save to DB
+        json_data = json.dumps(songs)
+        success = database.save_playlist(user_id, data.name, json_data)
+        
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save failed")
+        
+        return {"status": "ok", "count": len(songs)}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Import Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/playlists")
+def save_playlist(playlist: PlaylistCreate, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
         # Convert songs to storage format
         # Expects dicts, stored as JSON
         json_data = json.dumps(playlist.songs)
-        success = database.save_playlist(WEB_USER_ID, playlist.name, json_data)
+        success = database.save_playlist(user_id, playlist.name, json_data)
         if not success:
              raise HTTPException(status_code=500, detail="Database error")
         return {"status": "ok"}
@@ -157,14 +271,83 @@ def save_playlist(playlist: PlaylistCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/playlists/{name}")
-def delete_playlist(name: str):
+def delete_playlist(name: str, request: Request):
     try:
-        success = database.delete_playlist(WEB_USER_ID, name)
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        success = database.delete_playlist(user_id, name)
         if not success:
              raise HTTPException(status_code=404, detail="Not found or error")
         return {"status": "ok"}
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
+
+class AddSongRequest(BaseModel):
+    title: str
+
+@app.post("/api/playlists/{name}/add")
+def add_song_to_playlist(name: str, req: AddSongRequest, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Get current
+        json_str = database.get_playlist(user_id, name)
+        songs = []
+        if json_str:
+            songs = json.loads(json_str)
+        
+        # 2. Add
+        # Check duplicates if desired? Nah, let duplicates exist for now.
+        songs.append({"title": req.title})
+        
+        # 3. Save
+        success = database.save_playlist(user_id, name, json.dumps(songs))
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save error")
+             
+        return {"status": "ok", "count": len(songs)}
+    except Exception as e:
+        logger.error(f"Add Song Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/playlists/{name}/songs/{index}")
+def delete_song_from_playlist(name: str, index: int, request: Request):
+    import json
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+
+        # 1. Get current
+        json_str = database.get_playlist(user_id, name)
+        if not json_str:
+            raise HTTPException(status_code=404, detail="Playlist not found")
+        
+        songs = json.loads(json_str)
+        
+        # 2. Validation
+        if index < 0 or index >= len(songs):
+            raise HTTPException(status_code=400, detail="Invalid song index")
+
+        # 3. Remove
+        removed = songs.pop(index)
+        
+        # 4. Save
+        success = database.save_playlist(user_id, name, json.dumps(songs))
+        if not success:
+             raise HTTPException(status_code=500, detail="Database save error")
+             
+        return {"status": "ok", "removed": removed}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Delete Song Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 class FavoriteRequest(BaseModel):
     title: str
@@ -210,6 +393,21 @@ def check_favorite(q: str, request: Request):
     except Exception as e:
         return {"is_liked": False}
 
+@app.get("/api/stats")
+def get_stats(request: Request):
+    try:
+        # Fetch UID
+        uid_str = request.headers.get("X-Asuka-UID", str(WEB_USER_ID))
+        user_id = int(uid_str) if uid_str.isdigit() else WEB_USER_ID
+        
+        stats = database.get_user_stats(user_id)
+        if not stats:
+            return {"total": 0, "top_songs": []}
+        return stats
+    except Exception as e:
+        logger.error(f"Stats Error: {e}")
+        return {"total": 0, "top_songs": []}
+
 # --- AUTH SYSTEM ---
 import hashlib
 
@@ -250,6 +448,9 @@ async def login(user: UserAuth):
          raise HTTPException(status_code=401, detail="Invalid username or password")
          
     return {"id": db_id, "username": user.username}
+
+
+
 # Serve Static Files (Frontend)
 # Mount Temp for TTS (MUST BE BEFORE ROOT MOUNT)
 import os
