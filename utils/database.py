@@ -74,7 +74,7 @@ def get_recent_songs(guild_id, limit=10):
             # Filter by Guild ID to isolate contexts
             c.execute("SELECT rowid, title FROM music_history WHERE guild_id=? ORDER BY timestamp DESC LIMIT ?", (guild_id, limit))
             rows = c.fetchall()
-            return [row[1] for row in rows] # Returns [title, title, ...]
+            return rows # Returns [(id, title), ...]
     except Exception as e:
         logger.error(f"Error leyendo historial musical: {e}")
         return []

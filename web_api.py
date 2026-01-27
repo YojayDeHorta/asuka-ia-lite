@@ -200,7 +200,7 @@ async def next_radio_song(ctx: RadioContext, request: Request):
         older = []
         try:
              raw_history = database.get_recent_songs(guild_id, limit=50) 
-             older = raw_history
+             older = [r[1] for r in raw_history] # Extract titles from (id, title) tuples
         except Exception as db_e:
              logger.error(f"Failed to fetch DB history: {db_e}")
              older = ctx.history[:-5] if len(ctx.history) > 5 else []
