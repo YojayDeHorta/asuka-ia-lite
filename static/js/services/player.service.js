@@ -276,7 +276,15 @@ function updateProgress() {
 function seekAudio(e) {
     const rect = progressWrapper.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
-    audioPlayer.currentTime = pos * audioPlayer.duration;
+
+    let duration = audioPlayer.duration;
+    if (!Number.isFinite(duration) && state.currentQueue[state.currentIndex]) {
+        duration = state.currentQueue[state.currentIndex].duration;
+    }
+
+    if (duration && Number.isFinite(duration)) {
+        audioPlayer.currentTime = pos * duration;
+    }
 }
 
 // Radio
