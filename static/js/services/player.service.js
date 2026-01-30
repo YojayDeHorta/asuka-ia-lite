@@ -165,11 +165,25 @@ export async function loadAndPlay(track) {
 
         updateNowPlaying(track.title, artistName, track.thumbnail);
 
-        // USE PROXY
-        const proxyUrl = `${API_URL}/stream?url=${encodeURIComponent(streamUrl)}`;
-        console.log("Playing via Proxy:", proxyUrl);
+        // USE PROXY for Remote Links (YouTube), Direct for Local (Temp/Radio)
+        let playUrl = streamUrl;
+        if (streamUrl.startsWith("http")) {
+            // Encode headers if available (from yt-dlp resolution)
+            let headerParam = "";
+            if (track.http_headers) {
+                // Not strictly needed with our new piping system, but good practice if we revert
+                // const h = JSON.stringify(track.http_headers);
+                // headerParam = `&headers=${encodeURIComponent(h)}`;
+            }
 
-        audioPlayer.src = proxyUrl;
+            playUrl = `${API_URL}/stream?url=${encodeURIComponent(streamUrl)}${headerParam}`;
+            console.log("Playing via Proxy:", playUrl);
+        } else {
+            console.log("Playing Direct (Local):", playUrl);
+            playUrl = streamUrl;
+        }
+
+        audioPlayer.src = playUrl;
         audioPlayer.play();
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
 
