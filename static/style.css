@@ -310,15 +310,19 @@ header {
     }
 
     .sidebar {
-        display: none;
+        display: flex;
         position: absolute;
         height: 100%;
         z-index: 50;
         width: 80%;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 10px 0 20px rgba(0, 0, 0, 0.5);
+        /* Add shadow for depth */
     }
 
     .sidebar.active {
-        display: flex;
+        transform: translateX(0);
     }
 
     .mobile-only {
@@ -831,21 +835,23 @@ input:checked+.slider:before {
 /* --- Queue Panel --- */
 .queue-panel {
     position: fixed;
-    right: -400px;
+    right: 0;
     top: 0;
     width: 400px;
     height: 100vh;
     background: linear-gradient(180deg, #1a1a1f 0%, #0f0f12 100%);
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
-    transition: right 0.3s ease;
+    transform: translateX(100%);
+    /* Hidden by default */
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     z-index: 5000;
     display: flex;
     flex-direction: column;
 }
 
 .queue-panel.active {
-    right: 0;
+    transform: translateX(0);
 }
 
 .queue-header {
@@ -973,7 +979,8 @@ input:checked+.slider:before {
 @media (max-width: 768px) {
     .queue-panel {
         width: 100%;
-        right: -100%;
+        /* right: 0; already set above, just override width */
+        transform: translateX(100%);
     }
 }
 

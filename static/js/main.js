@@ -1,7 +1,7 @@
 
 import { initAuth, openAuthModal, switchAuthTab, logout, handleAuth } from './services/auth.service.js';
 import { initPlayer, startRadio, openCustomRadioModal, closeCustomRadioModal, submitCustomRadio, fetchNextRadioSong } from './services/player.service.js';
-import { showSection } from './services/ui.service.js';
+import { showSection, initUI } from './services/ui.service.js';
 import { toggleQueue, playQueueItem, removeQueueItem, clearQueue, updateQueueUI } from './components/queue.js';
 import { toggleChat, sendChatMessage, loadChatHistory } from './components/chat.js';
 import { loadPlaylists, openCreatePlaylistModal, closeCreatePlaylistModal, submitCreatePlaylist, checkImportInput, openAddToPlaylistModal, closeAddToPlaylistModal, submitAddToPlaylist, viewPlaylist, playCurrentPlaylistContext, deleteCurrentPlaylist, deleteSongFromPlaylist, playPlaylistContext } from './components/playlists.js';
@@ -12,6 +12,7 @@ import { loadStats } from './components/stats.js';
 
 // Init
 document.addEventListener("DOMContentLoaded", () => {
+    initUI();
     initTheme();
     initAuth();
     initPlayer();
