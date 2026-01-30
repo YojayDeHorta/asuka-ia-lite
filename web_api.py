@@ -504,7 +504,24 @@ def get_stats(request: Request):
         logger.error(f"Stats Error: {e}")
         return {"total": 0, "top_songs": []}
 
-# --- AUTH SYSTEM ---
+        return {"total": 0, "top_songs": []}
+
+# --- TTS Endpoint ---
+import edge_tts
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "es-MX-DaliaNeural" 
+
+@app.post("/api/tts")
+async def generate_tts(req: TTSRequest):
+    try:
+        output_file = f"temp/tts_{hash(req.text)}.mp3"
+        communicate = edge_tts.Communicate(req.text, req.voice)
+        await communicate.save(output_file)
+        return {"url": f"/{output_file}"}
+    except Exception as e:
+        logger.error(f"TTS Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 import hashlib
 
 class UserAuth(BaseModel):
@@ -570,33 +587,8 @@ async def startup_event():
     # Explicit Verification Log
     logger.info("✅ Stream Proxy Endpoint Registered")
 
-# --- Stream Proxy ---
-from fastapi.responses import StreamingResponse
-import requests
+# --- TTS Endpoint ---
 
-@app.get("/api/stream")
-async def stream_audio(url: str):
-    """Proxies audio stream to avoid IP blocking"""
-    try:
-        # Validate/Sanitize URL (Basic check)
-        if "googlevideo" not in url and "/temp" not in url:
-             # Allow temp/local but usually those are served statically. 
-             # For robustness, if it's a local file path, we shouldn't use this.
-             if not url.startswith("http"):
-                  raise HTTPException(status_code=400, detail="Invalid URL")
-
-        def iterfile():
-            # Use requests to stream content
-            # Stream=True is crucial
-            with requests.get(url, stream=True) as r:
-                r.raise_for_status()
-                for chunk in r.iter_content(chunk_size=8192):
-                    yield chunk
-        
-        return StreamingResponse(iterfile(), media_type="audio/webm") # Defaulting to webm typical for yt-dlp
-    except Exception as e:
-        logger.error(f"Stream Proxy Error: {e}")
-        raise HTTPException(status_code=500, detail="Stream failed")
 
 
 if __name__ == "__main__":

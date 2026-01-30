@@ -10,19 +10,38 @@ import { openSettingsModal, closeSettingsModal, saveSettings, copyUserID, initTh
 import { performSearch, clearSearch, renderSearchEmptyState, deleteRecentSearch } from './components/search.js';
 import { loadStats } from './components/stats.js';
 
+// Asuka AI Services
+import { initAvatar } from './services/avatar.service.js';
+import { initVoice, toggleVoiceInteraction } from './services/voice.service.js';
+
 // Init
 document.addEventListener("DOMContentLoaded", () => {
     initUI();
     initTheme();
     initAuth();
     initPlayer();
-    // Load things
+
+    // UI Loads
     loadPlaylists();
     loadChatHistory();
 });
 
 // Bridge to Window (for inline onclick compatibility)
-window.showSection = showSection;
+window.showSection = (sectionId) => {
+    // Normal UI switch
+    showSection(sectionId);
+
+    // Lazy Init 3D Avatar/Voice when user visits the tab
+    if (sectionId === 'avatar') {
+        initAvatar();
+        initVoice();
+    }
+};
+
+// Expose AI features
+window.toggleVoiceInteraction = toggleVoiceInteraction;
+
+// Expose Core Features
 window.openAuthModal = openAuthModal;
 window.switchAuthTab = switchAuthTab;
 window.handleAuth = handleAuth;
@@ -53,7 +72,7 @@ window.switchLibraryTab = switchLibraryTab;
 window.toggleLike = toggleLike;
 window.toggleHistoryLike = toggleHistoryLike;
 window.toggleTrackOptions = toggleTrackOptions;
-window.closeTrackOptionsDropdown = closeTrackOptionsDropdown; // Optional if not inline
+window.closeTrackOptionsDropdown = closeTrackOptionsDropdown;
 window.openSettingsModal = openSettingsModal;
 window.closeSettingsModal = closeSettingsModal;
 window.saveSettings = saveSettings;

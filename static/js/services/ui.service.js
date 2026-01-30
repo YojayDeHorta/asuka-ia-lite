@@ -94,5 +94,10 @@ export function showSection(sectionId) {
         case 'playlist':
             document.getElementById("playlist-view").style.display = 'block';
             break;
+        case 'avatar':
+            // Logic handled in main.js wrapper for lazy load, but we must show the div
+            document.getElementById("avatar-view").style.display = 'block';
+            document.querySelectorAll('.nav-links a')[5].classList.add('active'); // Index 5 is Asuka AI
+            break;
     }
 }
