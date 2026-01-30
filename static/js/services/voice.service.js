@@ -1,6 +1,7 @@
 
 import { updateLipSync } from './avatar.service.js';
 import { authenticatedFetch } from '../utils.js';
+import { loadChatHistory } from '../components/chat.js';
 
 let recognition;
 let isListening = false;
@@ -63,6 +64,9 @@ async function handleVoiceCommand(text) {
         const reply = data.response;
 
         document.getElementById("stt-result").innerText = reply;
+
+        // Update Chat UI
+        loadChatHistory();
 
         // 2. Get TTS Audio
         speak(reply);
