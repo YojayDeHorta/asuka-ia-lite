@@ -510,13 +510,15 @@ def get_stats(request: Request):
 import edge_tts
 class TTSRequest(BaseModel):
     text: str
-    voice: str = "es-MX-DaliaNeural" 
+    voice: str = "es-MX-DaliaNeural"
+    rate: str = "+15%"
+    pitch: str = "+25Hz"
 
 @app.post("/api/tts")
 async def generate_tts(req: TTSRequest):
     try:
         output_file = f"temp/tts_{hash(req.text)}.mp3"
-        communicate = edge_tts.Communicate(req.text, req.voice)
+        communicate = edge_tts.Communicate(req.text, req.voice, rate=req.rate, pitch=req.pitch)
         await communicate.save(output_file)
         return {"url": f"/{output_file}"}
     except Exception as e:

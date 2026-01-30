@@ -1,5 +1,6 @@
 
 import { updateLipSync } from './avatar.service.js';
+import { authenticatedFetch } from '../utils.js';
 
 let recognition;
 let isListening = false;
@@ -52,7 +53,7 @@ async function handleVoiceCommand(text) {
 
     // 1. Get LLM Response
     try {
-        const res = await fetch('/api/chat', {
+        const res = await authenticatedFetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text })
@@ -77,7 +78,7 @@ async function speak(text) {
 
     // Call API
     try {
-        const res = await fetch('/api/tts', {
+        const res = await authenticatedFetch('/api/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: text })
