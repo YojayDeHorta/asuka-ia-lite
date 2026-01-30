@@ -50,6 +50,16 @@ export function initUI() {
 }
 
 export function showSection(sectionId) {
+    // Avatar Mode Toggle (CSS Class)
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        if (sectionId === 'avatar') {
+            mainContent.classList.add('avatar-mode');
+        } else {
+            mainContent.classList.remove('avatar-mode');
+        }
+    }
+
     // Hide all sections
     document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
 

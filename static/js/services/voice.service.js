@@ -124,18 +124,24 @@ function playAudioWithLipSync(url) {
 
         analyser.getByteFrequencyData(dataArray);
 
-        // Calculate average volume
+        // Improved Algorithm (from asuka-old)
         let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-            sum += dataArray[i];
+        // Lower bins = fundamental voice frequencies
+        const voiceBins = 16;
+        // Skip first 2 bins (DC offset)
+        for (let i = 2; i < voiceBins + 2; i++) {
+            if (i < bufferLength) sum += dataArray[i];
         }
-        const volume = sum / bufferLength;
 
-        // Normalize (0-255 -> 0.0-1.0)
-        // Usually speech doesn't hit max 255 avg, so multiply
-        const normalized = (volume / 255) * 3.0;
+        const average = sum / voiceBins;
 
-        updateLipSync(normalized);
+        // Normalize
+        const normalized = Math.min(average / 150, 1.0);
+
+        // Power curve
+        const target = Math.pow(normalized, 2.0);
+
+        updateLipSync(target);
     }
 
     analyze();

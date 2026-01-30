@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asuka Web Lite</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        #toggleBtn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        #toggleBtn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+
+        #controls {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #eee;
+            z-index: 100;
+            max-height: 80vh;
+            width: 250px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: #ff4d4d;
+        }
+
+        h3 {
+            margin-top: 0;
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+            color: #ff4d4d;
+        }
+
+        #saveBtn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background: linear-gradient(45deg, #cc0000, #ff4d4d);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.1s;
+        }
+
+        #saveBtn:active {
+            transform: scale(0.98);
+        }
+
+        #emotionDebug {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: monospace;
+            font-size: 14px;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* --- CHAT UI STYLES --- */
+        #chatUI {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        #chatHistory {
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            mask-image: linear-gradient(to bottom, transparent, black 20%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%);
+            scrollbar-width: none;
+        }
+
+        .msg {
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 80%;
+            color: white;
+            font-size: 14px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .msg.user {
+            align-self: flex-end;
+            background: rgba(0, 100, 255, 0.6);
+        }
+
+        .msg.asuka {
+            align-self: flex-start;
+            background: rgba(255, 50, 50, 0.6);
+        }
+
+        #inputArea {
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        input[type=text] {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            outline: none;
+            font-size: 16px;
+        }
+
+        button.chatBtn {
+            border: none;
+            background: #ff4d4d;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.chatBtn:hover {
+            background: #ff0000;
+        }
+
+        #micBtn {
+            background: #444;
+            width: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border-radius: 15px;
+            border: none;
+            cursor: pointer;
+            color: white;
+            transition: all 0.3s;
+        }
+
+        #micBtn.listening {
+            background: #ff4d4d;
+            animation: pulse 1s infinite;
+        }
+
+        #micBtn.active-mode {
+            border: 2px solid #0f0;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+        }
+
+        /* Listening Overlay */
+        #listeningOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 24px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #listeningOverlay.visible {
+            opacity: 1;
+        }
+
+        .wave {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: white;
+            animation: wave 1s infinite ease-in-out;
+        }
+
+        .wave:nth-child(1) {
+            animation-delay: -0.4s;
+        }
+
+        .wave:nth-child(2) {
+            animation-delay: -0.2s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            40%,
+            100% {
+                transform: translateY(0);
+            }
+
+            20% {
+                transform: translateY(-10px);
+            }
+        }
+
+        #conversationToggle {
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            color: #aaa;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #conversationToggle input {
+            accent-color: #ff4d4d;
+            margin-right: 5px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script type="importmap">
+        { "imports": {
+            "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.0/lib/three-vrm.module.js",
+            "@tweenjs/tween.js": "https://unpkg.com/@tweenjs/tween.js@23.1.1/dist/tween.esm.js"
+        }}
+    </script>
+</head>
+
+<body>
+    <div id="particles-js"></div>
+    <div id="status">OFFLINE</div>
+    <div id="listeningOverlay">
+        <span class="wave"></span><span class="wave"></span><span class="wave"></span>
+        Escuchando...
+    </div>
+    <button id="toggleBtn" title="Ajustes">⚙️</button>
+    <div id="emotionDebug">INIT...</div>
+
+    <!-- CONTROLS UI -->
+    <div id="controls">
+        <h3>📹 Visual Core Config</h3>
+        <div class="control-group"><label>Posición X</label><input type="range" id="camX" min="-1.0" max="1.0"
+                step="0.05" value="0"></div>
+        <div class="control-group"><label>Posición Y</label><input type="range" id="camY" min="-2.0" max="3.0"
+                step="0.05" value="1.4"></div>
+        <div class="control-group"><label>Zoom (Z)</label><input type="range" id="camZ" min="0.5" max="3.0" step="0.05"
+                value="1.2"></div>
+        <h3>💃 Pose Refinada</h3>
+        <div class="control-group"><label>Rotación Global</label><input type="range" id="rotY" min="0" max="6.28"
+                step="0.1" value="3.14"></div>
+        <div class="control-group"><label>Brazo Izquierdo</label><input type="range" id="armL" min="-1.5" max="1.5"
+                step="0.1" value="1.2"></div>
+        <div class="control-group"><label>Brazo Derecho</label><input type="range" id="armR" min="-1.5" max="1.5"
+                step="0.1" value="-1.2"></div>
+        <button id="saveBtn">💾 GUARDAR ESTADO</button>
+    </div>
+
+    <!-- CHAT UI -->
+    <div id="chatUI">
+        <label id="conversationToggle">
+            <input type="checkbox" id="convModeCheck"> Modo Conversación
+        </label>
+        <div id="chatHistory"></div>
+        <div id="inputArea">
+            <input type="text" id="msgInput" placeholder="Escribe algo a Asuka..." autocomplete="off">
+            <button id="micBtn">🎤</button>
+            <button id="sendBtn" class="chatBtn">➤</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
+        import TWEEN from '@tweenjs/tween.js';
+
+        // --- GLOBAL STATE ---
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        let currentVRM = null;
+        let isSpeaking = false;
+        let isDancing = false;
+        let baseHipsY = 0;
+        let currentEmotion = 'neutral';
+        const supportedEmotions = ['neutral', 'happy', 'angry', 'sad', 'surprised'];
+        const emotionDebug = document.getElementById('emotionDebug');
+
+        let conversationMode = false;
+        let recognition = null;
+        let isRecognizing = false;
+
+        // --- AUDIO (Client-side) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let currentLipValue = 0;
+
+        function playAudio(url) {
+            // Stop listening while speaking to avoid echo
+            if (isRecognizing && recognition) {
+                console.log("⏸️ Pausando escucha para hablar...");
+                recognition.stop();
+            }
+
+            const audio = new Audio(url);
+            audio.crossOrigin = "anonymous";
+            const source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            audio.play();
+            isSpeaking = true;
+
+            audio.onended = () => {
+                isSpeaking = false;
+                // Resume listening if in conversation mode
+                if (conversationMode) {
+                    console.log("👂 Reactivando escucha (Modo Conversación)...");
+                    startRecognition();
+                }
+            };
+
+            // Ensure WebAudio is unlocked
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // --- WEBSOCKET HANDLING ---
+        const statusDiv = document.getElementById('status');
+        const chatBox = document.getElementById('chatHistory');
+
+        ws.onopen = () => { statusDiv.innerText = "ONLINE"; statusDiv.style.color = "#0f0"; };
+        ws.onclose = () => { statusDiv.innerText = "DISCONNECTED"; statusDiv.style.color = "#f00"; };
+
+        ws.onmessage = (e) => {
+            try {
+                const d = JSON.parse(e.data);
+
+                // CHAT RESPONSE
+                if (d.type === 'response') {
+                    addMessage(d.text, 'asuka');
+                    if (d.audio_url) playAudio(d.audio_url);
+                    if (d.emotion) updateEmotion(d.emotion);
+                }
+
+                // STATE UPDATES (Original Protocol)
+                if (d.type === 'state') {
+                    if (d.speaking !== undefined) isSpeaking = d.speaking;
+                    if (d.dancing !== undefined) isDancing = d.dancing;
+                    if (d.emotion) updateEmotion(d.emotion);
+                }
+
+                // EMOTION (Direct)
+                if (d.type === 'emotion') updateEmotion(d.emotion);
+
+            } catch (e) { }
+        };
+
+        function updateEmotion(emo) {
+            emo = emo.toLowerCase();
+            if (emo === 'surprise') emo = 'surprised';
+            if (supportedEmotions.includes(emo)) {
+                currentEmotion = emo;
+                emotionDebug.innerText = emo.toUpperCase();
+                emotionDebug.style.opacity = 1;
+                setTimeout(() => emotionDebug.style.opacity = 0.5, 2000);
+            }
+        }
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `msg ${sender}`;
+            div.innerText = text;
+            chatBox.appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- CONTROLS & UI BINDING ---
+        const uiRotY = document.getElementById('rotY');
+        const uiArmL = document.getElementById('armL');
+        const uiArmR = document.getElementById('armR');
+        const uiCamX = document.getElementById('camX');
+        const uiCamY = document.getElementById('camY');
+        const uiCamZ = document.getElementById('camZ');
+        const saveBtn = document.getElementById('saveBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const controlsDiv = document.getElementById('controls');
+
+        toggleBtn.addEventListener('click', () => {
+            controlsDiv.style.display = (controlsDiv.style.display === 'block') ? 'none' : 'block';
+        });
+
+        function loadSettings() {
+            const stored = localStorage.getItem('asuka_vrm_config');
+            if (stored) {
+                try {
+                    const cfg = JSON.parse(stored);
+                    if (cfg.camX) uiCamX.value = cfg.camX;
+                    if (cfg.camY) uiCamY.value = cfg.camY;
+                    if (cfg.camZ) uiCamZ.value = cfg.camZ;
+                    if (cfg.rotY) uiRotY.value = cfg.rotY;
+                    if (cfg.armL) uiArmL.value = cfg.armL;
+                    if (cfg.armR) uiArmR.value = cfg.armR;
+                } catch (e) { }
+            }
+            updateCamera();
+        }
+
+        saveBtn.addEventListener('click', () => {
+            const cfg = {
+                camX: uiCamX.value, camY: uiCamY.value, camZ: uiCamZ.value,
+                rotY: uiRotY.value, armL: uiArmL.value, armR: uiArmR.value
+            };
+            localStorage.setItem('asuka_vrm_config', JSON.stringify(cfg));
+            alert("✅ Configuración guardada.");
+        });
+
+        function updatePose() {
+            if (!currentVRM) return;
+            currentVRM.scene.rotation.y = parseFloat(uiRotY.value);
+            if (currentVRM.humanoid) {
+                const lA = currentVRM.humanoid.getNormalizedBoneNode('leftUpperArm');
+                const rA = currentVRM.humanoid.getNormalizedBoneNode('rightUpperArm');
+                if (lA) lA.rotation.z = parseFloat(uiArmL.value);
+                if (rA) rA.rotation.z = parseFloat(uiArmR.value);
+            }
+        }
+        function updateCamera() {
+            camera.position.set(parseFloat(uiCamX.value), parseFloat(uiCamY.value), parseFloat(uiCamZ.value));
+            camera.lookAt(0, 1.3, 0);
+        }
+
+        [uiRotY, uiArmL, uiArmR].forEach(el => el.addEventListener('input', updatePose));
+        [uiCamX, uiCamY, uiCamZ].forEach(el => el.addEventListener('input', updateCamera));
+
+        // --- CHAT INPUT LOGIC ---
+        const input = document.getElementById('msgInput');
+        const btn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
+        const listeningOverlay = document.getElementById('listeningOverlay');
+        const convModeCheck = document.getElementById('convModeCheck');
+
+        convModeCheck.addEventListener('change', (e) => {
+            conversationMode = e.target.checked;
+            if (conversationMode) {
+                micBtn.classList.add('active-mode');
+                // If checked, start listening immediately if not speaking
+                if (!isSpeaking) startRecognition();
+            } else {
+                micBtn.classList.remove('active-mode');
+                if (isRecognizing && recognition) recognition.stop();
+            }
+        });
+
+        function send() {
+            const text = input.value.trim();
+            if (!text) return;
+            addMessage(text, 'user');
+            ws.send(JSON.stringify({ type: 'chat', text: text }));
+            input.value = '';
+            // Unlock audio context on user interaction
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        btn.onclick = send;
+        input.onkeydown = (e) => { if (e.key === 'Enter') send(); };
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        let errorCount = 0;
+        const MAX_ERRORS = 3;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'es-ES';
+            recognition.continuous = true;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isRecognizing = true;
+                micBtn.classList.add('listening');
+                listeningOverlay.classList.add('visible');
+                errorCount = 0; // Reset error count on successful start
+            };
+
+            recognition.onend = () => {
+                isRecognizing = false;
+                micBtn.classList.remove('listening');
+                listeningOverlay.classList.remove('visible');
+
+                // Retry if conversation mode is active AND we haven't hit error limit
+                if (conversationMode && !isSpeaking) {
+                    if (errorCount < MAX_ERRORS) {
+                        const delay = errorCount * 1000 + 300; // Exponential-ish backoff
+                        console.log(`🔄 Reiniciando escucha (Intento ${errorCount})... Esperando ${delay}ms`);
+                        setTimeout(() => startRecognition(), delay);
+                    } else {
+                        console.warn("🛑 Deteniendo bucle por múltiples errores.");
+                        conversationMode = false;
+                        convModeCheck.checked = false;
+                        micBtn.classList.remove('active-mode');
+                        addMessage("[SISTEMA: Modo Conversación desactivado por errores de red]", "system");
+                    }
+                }
+            };
+
+            recognition.onresult = (event) => {
+                errorCount = 0; // Reset on successful result
+                // Get the latest result
+                const lastIdx = event.results.length - 1;
+                const transcript = event.results[lastIdx][0].transcript;
+
+                if (event.results[lastIdx].isFinal && transcript.trim()) {
+                    console.log("🗣️ Escuchado:", transcript);
+                    input.value = transcript;
+                    send();
+
+                    // Stop listening temporarily so we don't hear ourselves/Asuka
+                    recognition.stop();
+                    // Note: onend will handle restart if conversationMode is true
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.warn("Speech Error:", event.error);
+                errorCount++; // Increment error counter
+
+                if (event.error === 'not-allowed') {
+                    errorCount = MAX_ERRORS; // Force stop
+                    alert("❌ Acceso denegado. Verifica el candado SSL o flags.");
+                }
+                if (event.error === 'network') {
+                    // Network errors are common on HTTP/Remote configurations
+                    console.log("⚠️ Error de red detectado.");
+                }
+                // Ignore 'no-speech' errors (just keep listening or let loop restart)
+            };
+
+            micBtn.onclick = () => {
+                if (isRecognizing) {
+                    conversationMode = false; // Force stop loop on manual click
+                    convModeCheck.checked = false;
+                    recognition.stop();
+                } else {
+                    errorCount = 0;
+                    conversationMode = true; // Force start loop on manual click
+                    convModeCheck.checked = true;
+                    startRecognition();
+                }
+            };
+        } else {
+            micBtn.style.display = 'none';
+            console.warn("WebSpeech API not supported");
+            addMessage("[SISTEMA: Tu navegador no soporta micrófono. Usa Chrome/Edge]", "system");
+        }
+
+        function startRecognition() {
+            if (!recognition || isRecognizing) return;
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("Failed to start recognition", e);
+            }
+        }
+
+        // --- THREE.JS SCENE ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.05);
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20.0);
+        camera.position.set(0, 1.4, 1.2);
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = 'srgb';
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(1.0, 1.0, 1.0).normalize();
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040, 0.8));
+
+        loadSettings();
+
+        // --- MODEL LOADING ---
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+        loader.load('/visual/assets/model.vrm', (gltf) => {
+            const vrm = gltf.userData.vrm;
+            if (vrm.humanoid) {
+                const hips = vrm.humanoid.getNormalizedBoneNode('hips');
+                if (hips) baseHipsY = hips.position.y;
+            }
+            scene.add(vrm.scene);
+            currentVRM = vrm;
+            updatePose();
+
+            // Intro Anim
+            vrm.scene.rotation.y = parseFloat(uiRotY.value) + 1;
+            new TWEEN.Tween(vrm.scene.rotation).to({ y: parseFloat(uiRotY.value) }, 1000).easing(TWEEN.Easing.Cubic.Out).start();
+            emotionDebug.innerText = "READY";
+        });
+
+        // --- ANIMATION LOOP (Physics + Life) ---
+        const clock = new THREE.Clock();
+        const mouse = { x: 0, y: 0 };
+        const targetLook = { x: 0, y: 0 };
+        const saccadeTarget = { x: 0, y: 0 };
+        let saccadeTimer = 0;
+        let nextBlinkTime = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+            const delta = clock.getDelta();
+            const time = clock.elapsedTime;
+
+            if (currentVRM && currentVRM.humanoid) {
+                // 1. LOOK AT (Mouse + Saccades)
+                if (time > saccadeTimer) {
+                    saccadeTarget.x = (Math.random() - 0.5) * 0.3;
+                    saccadeTarget.y = (Math.random() - 0.5) * 0.1;
+                    saccadeTimer = time + 2 + Math.random() * 3;
+                }
+                const finalTargetX = (mouse.x * 0.7) + saccadeTarget.x;
+                const finalTargetY = (mouse.y * 0.7) + saccadeTarget.y;
+                targetLook.x += (finalTargetX - targetLook.x) * 5 * delta;
+                targetLook.y += (finalTargetY - targetLook.y) * 5 * delta;
+
+                const neck = currentVRM.humanoid.getNormalizedBoneNode('neck');
+                const head = currentVRM.humanoid.getNormalizedBoneNode('head');
+                const spine = currentVRM.humanoid.getNormalizedBoneNode('spine');
+
+                if (neck) { neck.rotation.y = targetLook.x * 0.4; neck.rotation.x = targetLook.y * 0.3; }
+                if (head) { head.rotation.y = targetLook.x * 0.2; head.rotation.x = targetLook.y * 0.2; }
+                if (spine) { spine.rotation.y = targetLook.x * 0.1; }
+
+                // 2. BREATHING
+                const breath = Math.sin(time * 1.5);
+                const chest = currentVRM.humanoid.getNormalizedBoneNode('chest');
+                if (chest) chest.rotation.x = breath * 0.03;
+                ['leftShoulder', 'rightShoulder'].forEach(s => {
+                    const n = currentVRM.humanoid.getNormalizedBoneNode(s);
+                    if (n) n.rotation.z = breath * 0.02 * (s.includes('right') ? -1 : 1);
+                });
+
+                // 3. LIPSYNC & EMOTION
+                // 3. LIPSYNC & EMOTION
+                if (isSpeaking) {
+                    analyser.getByteFrequencyData(dataArray);
+
+                    let sum = 0;
+                    // Lower bins = fundamental voice frequencies
+                    const voiceBins = 16;
+                    for (let i = 2; i < voiceBins + 2; i++) sum += dataArray[i]; // Skip very first bins (DC offset)
+
+                    const average = sum / voiceBins;
+
+                    // Reduced sensitivity: divide by 150 (was 80)
+                    const normalized = Math.min(average / 150, 1.0);
+
+                    // Power curve: Makes low volume much smaller, only loud peaks open fully
+                    const target = Math.pow(normalized, 2.0);
+
+                    // Snappy reaction
+                    currentLipValue += (target - currentLipValue) * 30 * delta;
+                } else {
+                    currentLipValue = 0; // Instant close
+                }
+
+                // Clamp max open to 70% to avoid "unhinged jaw" look
+                currentVRM.expressionManager.setValue('aa', currentLipValue * 0.7);
+                currentVRM.expressionManager.setValue('ih', currentLipValue * 0.4);
+                currentVRM.expressionManager.setValue('ou', currentLipValue * 0.3);
+
+                supportedEmotions.forEach(emo => {
+                    const t = (emo === currentEmotion) ? 1 : 0;
+                    const c = currentVRM.expressionManager.getValue(emo) || 0;
+                    currentVRM.expressionManager.setValue(emo, c + (t - c) * 5 * delta);
+                });
+
+                // 4. BLINK
+                if (currentEmotion !== 'happy' && currentEmotion !== 'sad' && time > nextBlinkTime) {
+                    new TWEEN.Tween({ v: 0 }).to({ v: 1 }, 50).onUpdate(o => currentVRM.expressionManager.setValue('blink', o.v))
+                        .chain(new TWEEN.Tween({ v: 1 }).to({ v: 0 }, 100).onUpdate(o => currentVRM.expressionManager.setValue('blink', o.v))).start();
+                    nextBlinkTime = time + Math.random() * 4 + 1;
+                }
+
+                currentVRM.update(delta);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Particles
+        particlesJS("particles-js", {
+            "particles": { "number": { "value": 40 }, "opacity": { "value": 0.2 }, "size": { "value": 3 }, "move": { "enable": true, "speed": 1 } }
+        });
+
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+
+</html>
