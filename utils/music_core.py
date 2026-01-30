@@ -22,6 +22,7 @@ class MusicCore:
 
         self.ytdl_opts = config.YTDL_FORMAT_OPTIONS.copy()
         self.ytdl_opts['logger'] = YTDLLogger()
+        self.ytdl_opts['extractor_args'] = {'youtube': {'player_client': ['android']}}
         self.ytdl = yt_dlp.YoutubeDL(self.ytdl_opts)
         
         # Spotify Config
@@ -184,31 +185,43 @@ class MusicCore:
 
     async def get_stream_url(self, query):
         """
-        Resuelve una query (ej: 'Daft Punk One More Time') a una URL de audio directo.
-        Útil para resolver las búsquedas de Spotify o inputs de texto.
+        Resuelve una query a una URL de YouTube (webpage_url) para que el Proxy la procese.
+        Usa 'extract_flat' para máxima velocidad.
         """
         try:
             loop = asyncio.get_event_loop()
-            # force search if it's not a URL
+            
+            # Use search_ytdl (Already configured with extract_flat=True in __init__)
+            # This returns just metadata, usually no 'formats', but enough for the ID/URL.
+            
+            search_query = query
             if not query.startswith("http"):
-                query = f"ytsearch1:{query}"
+                search_query = f"ytsearch1:{query}"
                 
-            data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(query, download=False))
+            data = await loop.run_in_executor(None, lambda: self.search_ytdl.extract_info(search_query, download=False))
             
             if not data:
                 return None
 
+            entry = data
             if 'entries' in data:
-                if not data['entries']: # Empty list check
+                if not data['entries']: 
                     return None
-                data = data['entries'][0]
+                entry = data['entries'][0]
                 
+            # Construct YouTube URL
+            video_url = entry.get('url')
+            if video_url and len(video_url) == 11 and "." not in video_url:
+                 video_url = f"https://www.youtube.com/watch?v={video_url}"
+            elif entry.get('webpage_url'):
+                 video_url = entry.get('webpage_url')
+
             return {
-                'title': data.get('title'),
-                'url': data.get('url'), # Direct Stream URL
-                'duration': data.get('duration', 0),
-                'webpage_url': data.get('webpage_url'),
-                'thumbnail': data.get('thumbnail')
+                'title': entry.get('title'),
+                'url': video_url, # Original YouTube URL -> Frontend -> Backend Proxy -> yt-dlp pipe
+                'duration': entry.get('duration', 0),
+                'webpage_url': entry.get('webpage_url'),
+                'thumbnail': entry.get('thumbnail')
             }
         except Exception as e:
             logger.error(f"Stream Resolution Error: {e}")

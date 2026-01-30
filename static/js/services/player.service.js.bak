@@ -146,7 +146,6 @@ export async function loadAndPlay(track) {
             streamUrl = data.url;
             track.url = streamUrl;
             track.thumbnail = data.thumbnail;
-            track.http_headers = data.http_headers; // Save headers
             track.resolved = true;
         }
 
@@ -232,22 +231,11 @@ function handleTrackEnd() {
 }
 
 function updateProgress() {
-    let duration = audioPlayer.duration;
-
-    // Fallback if streamed audio has infinite duration (common in chunks)
-    if (!Number.isFinite(duration) && state.currentQueue[state.currentIndex]) {
-        // API duration is in seconds
-        duration = state.currentQueue[state.currentIndex].duration;
-    }
-
-    if (duration && Number.isFinite(duration) && duration > 0) {
-        const pct = (audioPlayer.currentTime / duration) * 100;
+    if (audioPlayer.duration) {
+        const pct = (audioPlayer.currentTime / audioPlayer.duration) * 100;
         progressBar.style.width = pct + "%";
         document.getElementById("curr-time").innerText = formatTime(audioPlayer.currentTime);
-        document.getElementById("tot-time").innerText = formatTime(duration);
-    } else {
-        document.getElementById("curr-time").innerText = formatTime(audioPlayer.currentTime);
-        document.getElementById("tot-time").innerText = "--:--";
+        document.getElementById("tot-time").innerText = formatTime(audioPlayer.duration);
     }
 }
 

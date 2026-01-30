@@ -42,9 +42,105 @@ async def search(q: str):
         logger.error(f"Search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# --- Stream Proxy ---
+from fastapi.responses import StreamingResponse
+import requests
+
+@app.get("/api/stream")
+async def stream_audio(url: str, headers: str = None):
+    """Proxies audio stream to avoid IP blocking. Uses yt-dlp for YouTube links."""
+    try:
+        # 1. YouTube Direct Streaming (Robust)
+        if "youtube.com" in url or "youtu.be" in url:
+            # Create a generator that yields data from yt-dlp stdout
+            # Chain: yt-dlp -> ffmpeg -> mp3 stream
+            # Chain: yt-dlp -> ffmpeg -> mp3 stream (via Shell Pipe)
+            async def yt_stream_generator():
+                import shlex
+                
+                # Construct safe shell command
+                # yt-dlp outputs to stdout (-o -) -> Pipe (|) -> ffmpeg reads from stdin (pipe:0) -> mp3 to stdout (pipe:1)
+                safe_url = shlex.quote(url)
+                cmd = (
+                    f"yt-dlp -f bestaudio/best -o - --quiet --no-warnings --force-ipv4 "
+                    f"--extractor-args \"youtube:player_client=android\" "
+                    f"{safe_url} | "
+                    "ffmpeg -i pipe:0 -f mp3 -map 0:a -b:a 128k pipe:1"
+                )
+                
+                try:
+                    # Start shell process
+                    process = await asyncio.create_subprocess_shell(
+                        cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    
+                    logger.info(f"Stream Process Started: {process.pid}")
+
+                    # Chunk size for reading
+                    CHUNK_SIZE = 32 * 1024 
+
+                    while True:
+                        # Read encoded MP3 chunks from final stdout (ffmpeg)
+                        chunk = await process.stdout.read(CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        yield chunk
+                    
+                    # Cleanup
+                    if process.returncode is None:
+                        try:
+                            process.terminate()
+                            await process.wait()
+                        except: pass
+
+                except Exception as e:
+                    logger.error(f"Transcode Error: {e}")
+                    # Try to kill
+                    try: process.kill() 
+                    except: pass
+
+            return StreamingResponse(yt_stream_generator(), media_type="audio/mpeg")
+
+        # 2. Raw URL Proxy (Googlevideo / Others) - Legacy/Fallback
+        # Validate/Sanitize URL (Basic check)
+        if "googlevideo" not in url and "/temp" not in url:
+             if not url.startswith("http"):
+                  raise HTTPException(status_code=400, detail="Invalid URL")
+
+        import json
+        
+        def iterfile():
+            try:
+                # Default Headers (Android)
+                req_headers = {
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                }
+                
+                # Apply headers from yt-dlp if provided
+                if headers:
+                    try:
+                        custom_headers = json.loads(headers)
+                        req_headers.update(custom_headers)
+                    except:
+                        logger.error("Failed to parse headers param")
+
+                with requests.get(url, stream=True, headers=req_headers, timeout=30) as r:
+                    r.raise_for_status()
+                    for chunk in r.iter_content(chunk_size=8192):
+                        yield chunk
+            except Exception as stream_err:
+                logger.error(f"Streaming Interrupted: {stream_err}")
+        
+        return StreamingResponse(iterfile(), media_type="audio/webm")
+    except Exception as e:
+        logger.error(f"Stream Proxy Init Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Stream failed: {str(e)}")
+
 @app.get("/api/resolve")
 async def resolve_stream(q: str, request: Request):
-    """Resuelve un título o búsqueda a una URL de stream."""
     try:
         data = await core.get_stream_url(q)
         if not data:
@@ -470,6 +566,38 @@ async def startup_event():
         logger.info("Web API Started.")
     except Exception as e:
         logger.error(f"Startup error: {e}")
+
+    # Explicit Verification Log
+    logger.info("✅ Stream Proxy Endpoint Registered")
+
+# --- Stream Proxy ---
+from fastapi.responses import StreamingResponse
+import requests
+
+@app.get("/api/stream")
+async def stream_audio(url: str):
+    """Proxies audio stream to avoid IP blocking"""
+    try:
+        # Validate/Sanitize URL (Basic check)
+        if "googlevideo" not in url and "/temp" not in url:
+             # Allow temp/local but usually those are served statically. 
+             # For robustness, if it's a local file path, we shouldn't use this.
+             if not url.startswith("http"):
+                  raise HTTPException(status_code=400, detail="Invalid URL")
+
+        def iterfile():
+            # Use requests to stream content
+            # Stream=True is crucial
+            with requests.get(url, stream=True) as r:
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    yield chunk
+        
+        return StreamingResponse(iterfile(), media_type="audio/webm") # Defaulting to webm typical for yt-dlp
+    except Exception as e:
+        logger.error(f"Stream Proxy Error: {e}")
+        raise HTTPException(status_code=500, detail="Stream failed")
+
 
 if __name__ == "__main__":
     import uvicorn
