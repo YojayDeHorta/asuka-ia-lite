@@ -146,7 +146,8 @@ export async function loadAndPlay(track) {
             streamUrl = data.url;
             track.url = streamUrl;
             track.thumbnail = data.thumbnail;
-            track.http_headers = data.http_headers; // Save headers
+            track.duration = data.duration; // Save duration for fallback
+            track.http_headers = data.http_headers;
             track.resolved = true;
         }
 
@@ -155,6 +156,13 @@ export async function loadAndPlay(track) {
         if (!track.is_intro && track.title.includes(" - ")) {
             artistName = track.title.split(" - ")[0];
         }
+
+        // Update DOM
+        document.getElementById("np-artist").innerText = artistName;
+        if (track.thumbnail) {
+            document.getElementById("np-img").src = track.thumbnail;
+        }
+
         updateNowPlaying(track.title, artistName, track.thumbnail);
 
         // USE PROXY
